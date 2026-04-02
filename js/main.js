@@ -1,3 +1,24 @@
+// Importa Firebase
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+// Inizializza Firebase (usa le credenziali che hai ottenuto)
+  const firebaseConfig = {
+    apiKey: "AIzaSyB-2yDPXPOoGGjpbV44VfJYkNRfnezNUkE",
+    authDomain: "gildaesploratorimontello.firebaseapp.com",
+    projectId: "gildaesploratorimontello",
+    storageBucket: "gildaesploratorimontello.firebasestorage.app",
+    messagingSenderId: "512224002060",
+    appId: "1:512224002060:web:a041a2b7a225dc3a952e29",
+    measurementId: "G-KEWSJWLKX2"
+  };
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+
 // =====================================================
 // PATHFINDER ONE-SHOT - MAIN JAVASCRIPT
 // =====================================================
