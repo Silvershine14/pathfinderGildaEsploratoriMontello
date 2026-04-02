@@ -20,6 +20,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
+// Inizializza Firebase Authentication
+const auth = getAuth(app);
+
+// Inizializza Cloud Firestore
+const db = getFirestore(app);
+
+
 // =====================================================
 // PATHFINDER ONE-SHOT - MAIN JAVASCRIPT
 // =====================================================
