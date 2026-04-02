@@ -1,11 +1,8 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+// =====================================================
+// PATHFINDER ONE-SHOT - MAIN JAVASCRIPT WITH FIREBASE
+// =====================================================
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// FIREBASE CONFIGURATION
 const firebaseConfig = {
   apiKey: "AIzaSyB-2yDPXPOoGGjpbV44VfJYkNRfnezNUkE",
   authDomain: "gildaesploratorimontello.firebaseapp.com",
@@ -16,22 +13,10 @@ const firebaseConfig = {
   measurementId: "G-KEWSJWLKX2"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Firebase services (initialized after DOM loads)
+let app, auth, db, storage;
 
-// Inizializza Firebase Authentication
-const auth = getAuth(app);
-
-// Inizializza Cloud Firestore
-const db = getFirestore(app);
-
-
-// =====================================================
-// PATHFINDER ONE-SHOT - MAIN JAVASCRIPT
-// =====================================================
-
-// DATI DI ESEMPIO (sostituirai con Firebase in futuro)
+// DATI DI ESEMPIO (per fallback se Firestore è vuoto)
 const adventures = [
     {
         id: 1,
@@ -87,61 +72,162 @@ function log(message, data = null) {
 }
 
 // =====================================================
-// AUTHENTICATION (PLACEHOLDER)
+// FIREBASE INITIALIZATION
 // =====================================================
 
 /**
- * Check se l'utente è loggato (da localStorage, provvisorio)
+ * Inizializza Firebase (chiamata al caricamento della pagina)
+ */
+function initializeFirebase() {
+    try {
+        // Initialize Firebase
+        app = firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        storage = firebase.storage();
+        
+        log('Firebase inizializzato correttamente');
+        
+        // Listener per cambio stato autenticazione
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                log('Utente autenticato:', user.email);
+            } else {
+                log('Nessun utente autenticato');
+            }
+        });
+        
+        return true;
+    } catch (error) {
+        log('ERRORE inizializzazione Firebase:', error);
+        return false;
+    }
+}
+
+// =====================================================
+// AUTHENTICATION WITH FIREBASE
+// =====================================================
+
+/**
+ * Check se l'utente è loggato (Firebase)
  */
 function isUserLoggedIn() {
-    return localStorage.getItem('pathfinder_user') !== null;
+    return auth && auth.currentUser !== null;
 }
 
 /**
- * Ottieni dati utente loggato
+ * Ottieni dati utente loggato (Firebase)
  */
 function getCurrentUser() {
-    const userJSON = localStorage.getItem('pathfinder_user');
-    return userJSON ? JSON.parse(userJSON) : null;
-}
-
-/**
- * Login (placeholder, senza Firebase per ora)
- */
-function loginUser(email, password) {
-    // NOTA: Questo è un placeholder. In produzione userai Firebase Authentication
-    const user = {
-        email: email,
-        name: email.split('@')[0],
-        loginTime: new Date().toISOString()
+    if (!auth || !auth.currentUser) return null;
+    
+    return {
+        uid: auth.currentUser.uid,
+        email: auth.currentUser.email,
+        displayName: auth.currentUser.displayName || auth.currentUser.email.split('@')[0]
     };
-    localStorage.setItem('pathfinder_user', JSON.stringify(user));
-    log('Utente loggato:', user);
-    return user;
 }
 
 /**
- * Logout
+ * Login con Firebase Authentication
  */
-function logoutUser() {
-    localStorage.removeItem('pathfinder_user');
-    log('Utente disconnesso');
-    window.location.href = 'index.html';
+async function loginUser(email, password) {
+    try {
+        log('Tentativo di login con Firebase...');
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        log('Login Firebase riuscito:', user.email);
+        
+        return {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0]
+        };
+    } catch (error) {
+        log('Errore login Firebase:', error.code, error.message);
+        
+        // Traduci errori Firebase in italiano
+        let errorMessage = 'Errore durante il login';
+        if (error.code === 'auth/user-not-found') {
+            errorMessage = 'Utente non trovato. Registrati prima.';
+        } else if (error.code === 'auth/wrong-password') {
+            errorMessage = 'Password errata.';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = 'Email non valida.';
+        } else if (error.code === 'auth/too-many-requests') {
+            errorMessage = 'Troppi tentativi. Riprova più tardi.';
+        }
+        
+        throw new Error(errorMessage);
+    }
 }
 
 /**
- * Registrazione (placeholder)
+ * Logout (Firebase)
  */
-function registerUser(email, password, name) {
-    // NOTA: Questo è un placeholder. In produzione userai Firebase Authentication
-    const user = {
-        email: email,
-        name: name,
-        registrationTime: new Date().toISOString()
-    };
-    localStorage.setItem('pathfinder_user', JSON.stringify(user));
-    log('Utente registrato:', user);
-    return user;
+async function logoutUser() {
+    try {
+        await auth.signOut();
+        log('Logout completato');
+        window.location.href = 'index.html';
+    } catch (error) {
+        log('Errore logout:', error);
+        alert('Errore durante il logout');
+    }
+}
+
+/**
+ * Registrazione con Firebase Authentication
+ */
+async function registerUser(email, password, name) {
+    try {
+        log('Tentativo di registrazione con Firebase...');
+        
+        // Crea l'utente in Firebase Auth
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        log('Utente creato in Firebase Auth:', user.uid);
+        
+        // Aggiorna il profilo con il nome
+        await user.updateProfile({
+            displayName: name
+        });
+        
+        log('Profilo aggiornato con displayName:', name);
+        
+        // Salva dati utente in Firestore
+        await db.collection('users').doc(user.uid).set({
+            email: email,
+            displayName: name,
+            role: 'player', // default role
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            characters: []
+        });
+        
+        log('Dati utente salvati in Firestore');
+        
+        return {
+            uid: user.uid,
+            email: user.email,
+            displayName: name
+        };
+    } catch (error) {
+        log('Errore registrazione Firebase:', error.code, error.message);
+        
+        // Traduci errori Firebase in italiano
+        let errorMessage = 'Errore durante la registrazione';
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = 'Questa email è già registrata. Fai il login.';
+        } else if (error.code === 'auth/invalid-email') {
+            errorMessage = 'Email non valida.';
+        } else if (error.code === 'auth/weak-password') {
+            errorMessage = 'La password deve essere di almeno 6 caratteri.';
+        }
+        
+        throw new Error(errorMessage);
+    }
 }
 
 // =====================================================
@@ -149,15 +235,54 @@ function registerUser(email, password, name) {
 // =====================================================
 
 /**
- * Carica lista di avventure
+ * Carica lista di avventure da Firestore
  */
-function loadAdventures() {
+async function loadAdventures() {
+    const container = document.querySelector('.adventures-grid');
+    if (!container) return;
+
+    container.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">Caricamento avventure...</p>';
+
+    try {
+        // Prova a caricare da Firestore
+        const snapshot = await db.collection('oneshots').orderBy('createdAt', 'desc').get();
+        
+        if (snapshot.empty) {
+            log('Nessuna avventura in Firestore, uso dati di esempio');
+            // Usa dati di esempio
+            renderAdventures(adventures);
+        } else {
+            const firestoreAdventures = [];
+            snapshot.forEach(doc => {
+                firestoreAdventures.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            log('Avventure caricate da Firestore:', firestoreAdventures.length);
+            renderAdventures(firestoreAdventures);
+        }
+    } catch (error) {
+        log('Errore caricamento avventure da Firestore, uso dati di esempio:', error);
+        renderAdventures(adventures);
+    }
+}
+
+/**
+ * Renderizza le avventure nel DOM
+ */
+function renderAdventures(adventuresList) {
     const container = document.querySelector('.adventures-grid');
     if (!container) return;
 
     container.innerHTML = '';
 
-    adventures.forEach(adventure => {
+    if (adventuresList.length === 0) {
+        container.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">Nessuna avventura disponibile al momento.</p>';
+        return;
+    }
+
+    adventuresList.forEach(adventure => {
         const card = document.createElement('div');
         card.className = 'adventure-card';
         card.innerHTML = `
@@ -169,7 +294,7 @@ function loadAdventures() {
         container.appendChild(card);
     });
 
-    log('Avventure caricate:', adventures.length);
+    log('Avventure renderizzate:', adventuresList.length);
 }
 
 /**
@@ -230,6 +355,7 @@ function initLoginPage() {
 
     // Se già loggato, reindirizza a dashboard
     if (isUserLoggedIn()) {
+        log('Utente già loggato, reindirizzo a dashboard');
         window.location.href = 'dashboard.html';
         return;
     }
@@ -237,34 +363,68 @@ function initLoginPage() {
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
 
+    log('Form trovati - Login:', !!loginForm, 'Register:', !!registerForm);
+
     if (loginForm) {
-        loginForm.addEventListener('submit', (e) => {
+        log('Collegamento evento submit al loginForm');
+        loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            log('Submit del form di login intercettato');
+            
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
             
+            log('Dati login:', { email, password: password ? '***' : 'vuoto' });
+            
             if (email && password) {
-                loginUser(email, password);
-                alert('Login effettuato! Benvenuto.');
-                window.location.href = 'dashboard.html';
+                try {
+                    await loginUser(email, password);
+                    log('Login completato con successo');
+                    alert('Login effettuato! Benvenuto.');
+                    window.location.href = 'dashboard.html';
+                } catch (error) {
+                    log('Errore durante il login:', error);
+                    alert(error.message || 'Errore durante il login. Controlla la console.');
+                }
+            } else {
+                alert('Per favore inserisci email e password');
             }
         });
+    } else {
+        log('ERRORE: loginForm non trovato!');
     }
 
     if (registerForm) {
-        registerForm.addEventListener('submit', (e) => {
+        log('Collegamento evento submit al registerForm');
+        registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
+            log('Submit del form di registrazione intercettato');
+            
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
             const name = document.getElementById('registerName').value;
             
+            log('Dati registrazione:', { email, name, password: password ? '***' : 'vuoto' });
+            
             if (email && password && name) {
-                registerUser(email, password, name);
-                alert('Registrazione effettuata! Benvenuto nella comunità.');
-                window.location.href = 'dashboard.html';
+                try {
+                    await registerUser(email, password, name);
+                    log('Registrazione completata con successo');
+                    alert('Registrazione effettuata! Benvenuto nella comunità.');
+                    window.location.href = 'dashboard.html';
+                } catch (error) {
+                    log('Errore durante la registrazione:', error);
+                    alert(error.message || 'Errore durante la registrazione. Controlla la console.');
+                }
+            } else {
+                alert('Per favore compila tutti i campi');
             }
         });
+    } else {
+        log('ERRORE: registerForm non trovato!');
     }
+    
+    log('Inizializzazione login completata');
 }
 
 /**
@@ -350,37 +510,50 @@ function loadCharacters() {
 document.addEventListener('DOMContentLoaded', () => {
     log('Pagina caricata');
 
-    // Determina quale pagina è attualmente attiva
-    const currentPage = window.location.pathname;
-
-    if (currentPage.includes('index.html') || currentPage === '/' || currentPage.endsWith('/')) {
-        initHomePage();
-    } else if (currentPage.includes('one-shots.html')) {
-        initOneShots();
-    } else if (currentPage.includes('login.html')) {
-        initLoginPage();
-    } else if (currentPage.includes('dashboard.html')) {
-        initDashboard();
+    // INIZIALIZZA FIREBASE PRIMA DI TUTTO
+    const firebaseReady = initializeFirebase();
+    
+    if (!firebaseReady) {
+        log('ERRORE: Firebase non è stato inizializzato correttamente');
+        alert('Errore di connessione al server. Ricarica la pagina.');
+        return;
     }
+
+    // Aspetta un momento per assicurarsi che Firebase sia completamente pronto
+    setTimeout(() => {
+        // Determina quale pagina è attualmente attiva basandosi sugli elementi presenti
+        // Questo approccio è più robusto del controllare window.location.pathname
+        
+        if (document.getElementById('loginForm')) {
+            // Siamo sulla pagina di login
+            initLoginPage();
+        } else if (document.querySelector('.dashboard-container')) {
+            // Siamo sulla dashboard
+            initDashboard();
+        } else if (document.querySelector('.hero')) {
+            // Siamo su una pagina con hero (home o one-shots)
+            const currentPage = window.location.pathname;
+            if (currentPage.includes('one-shot') || window.location.search.includes('id=')) {
+                initOneShots();
+            } else {
+                initHomePage();
+            }
+        }
+    }, 100);
 });
 
 // =====================================================
-// UTILITÀ PER FUTURE INTEGRAZIONI FIREBASE
-// ===================================================== 
-
-/*
-// ISTRUZIONI PER AGGIUNGERE FIREBASE:
+// NOTA: INTEGRAZIONE FIREBASE
+// =====================================================
 // 
-// 1. Nella sezione <head> dell'HTML, aggiungi:
-//    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-//    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
-//    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js"></script>
+// Quando sarai pronto ad aggiungere Firebase per un vero database e autenticazione:
+// 1. Aggiungi gli script Firebase nell'HTML
+// 2. Inizializza Firebase con le tue credenziali
+// 3. Sostituisci le funzioni localStorage con chiamate Firebase
+// 
+// Per ora il sistema usa localStorage (salvataggio locale nel browser)
+// ed è perfetto per testare!
 //
-// 2. In questo file, sotto questo commento, aggiungi il config Firebase
-//
-// 3. Sostituisci le funzioni di login/register/loadAdventures con versioni Firebase
-//
-// Contattami quando sei pronto per integrare Firebase!
-*/
+// =====================================================
 
 log('Script caricato correttamente');
