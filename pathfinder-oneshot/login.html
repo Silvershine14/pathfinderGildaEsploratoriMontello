@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accedi – Pathfinder One-Shot</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <h1>⚔️ Pathfinder One-Shot</h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="one-shots.html">Avventure</a></li>
+                <li><a href="index.html#gallery">Galleria</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- LOGIN CONTAINER -->
+    <div class="login-container">
+        <h2>Accedi alla Tua Avventura</h2>
+
+        <!-- TAB NAVIGATION -->
+        <div class="tabs" style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #ddd;">
+            <button class="tab-btn" id="loginTabBtn" style="padding: 0.5rem 1rem; background: none; border: none; cursor: pointer; font-size: 1rem; font-weight: 600; color: #8b4513; border-bottom: 3px solid #8b4513;" onclick="showLoginTab()">Accedi</button>
+            <button class="tab-btn" id="registerTabBtn" style="padding: 0.5rem 1rem; background: none; border: none; cursor: pointer; font-size: 1rem; font-weight: 600; color: #999;" onclick="showRegisterTab()">Registrati</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" style="display: block;">
+            <div class="form-group">
+                <label for="loginEmail">Email</label>
+                <input type="email" id="loginEmail" required placeholder="tuo@email.com">
+            </div>
+
+            <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" required placeholder="••••••••">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">Accedi</button>
+            </div>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="registerForm" style="display: none;">
+            <div class="form-group">
+                <label for="registerName">Nome</label>
+                <input type="text" id="registerName" required placeholder="Il tuo nome">
+            </div>
+
+            <div class="form-group">
+                <label for="registerEmail">Email</label>
+                <input type="email" id="registerEmail" required placeholder="tuo@email.com">
+            </div>
+
+            <div class="form-group">
+                <label for="registerPassword">Password</label>
+                <input type="password" id="registerPassword" required placeholder="Almeno 6 caratteri">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">Registrati</button>
+            </div>
+        </form>
+
+        <!-- TOGGLE FORM MESSAGE -->
+        <div class="toggle-form" id="toggleMessage">
+            Non hai un account? <a href="#" onclick="showRegisterTab(); return false;">Registrati qui</a>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer" style="margin-top: 4rem;">
+        <div class="container">
+            <p>&copy; 2025 Pathfinder One-Shot. Tutti i diritti riservati.</p>
+            <p>Pathfinder è un marchio registrato di Paizo Inc.</p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+    <script>
+        // TAB SWITCHING
+        function showLoginTab() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginTabBtn').style.color = '#8b4513';
+            document.getElementById('loginTabBtn').style.borderBottom = '3px solid #8b4513';
+            document.getElementById('registerTabBtn').style.color = '#999';
+            document.getElementById('registerTabBtn').style.borderBottom = 'none';
+            document.getElementById('toggleMessage').innerHTML = 'Non hai un account? <a href="#" onclick="showRegisterTab(); return false;">Registrati qui</a>';
+        }
+
+        function showRegisterTab() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            document.getElementById('registerTabBtn').style.color = '#8b4513';
+            document.getElementById('registerTabBtn').style.borderBottom = '3px solid #8b4513';
+            document.getElementById('loginTabBtn').style.color = '#999';
+            document.getElementById('loginTabBtn').style.borderBottom = 'none';
+            document.getElementById('toggleMessage').innerHTML = 'Hai già un account? <a href="#" onclick="showLoginTab(); return false;">Accedi qui</a>';
+        }
+    </script>
+</body>
+</html>

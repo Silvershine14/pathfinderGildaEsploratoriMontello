@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Mia Area – Pathfinder One-Shot</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <h1>⚔️ Pathfinder One-Shot</h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="one-shots.html">Avventure</a></li>
+                <li><a href="index.html#gallery">Galleria</a></li>
+                <li><a href="#" onclick="logoutUser(); return false;" class="btn-logout">Esci</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- DASHBOARD CONTAINER -->
+    <div class="dashboard-container">
+        <!-- HEADER -->
+        <div class="dashboard-header">
+            <h2>La Mia Area Personale</h2>
+            <p>Gestisci i tuoi personaggi e accedi ai contenuti esclusivi</p>
+        </div>
+
+        <!-- USER INFO -->
+        <div class="user-info">
+            <h3>Caricamento profilo...</h3>
+        </div>
+
+        <!-- CHARACTERS SECTION -->
+        <section style="margin-top: 3rem;">
+            <h2>I Miei Personaggi</h2>
+            <p style="text-align: center; color: #666; margin-bottom: 2rem;">
+                I personaggi che hanno partecipato alle tue avventure
+            </p>
+            <div class="character-grid"></div>
+        </section>
+
+        <!-- SESSIONS HISTORY -->
+        <section style="margin-top: 4rem; margin-bottom: 4rem;">
+            <h2>Cronologia Sessioni</h2>
+            <div style="background-color: white; padding: 2rem; border-radius: 8px; border-left: 5px solid #8b4513;">
+                <p style="color: #666; margin-bottom: 0;">
+                    Le tue sessioni completate appariranno qui. Accedi agli handout e alle mappe relative a ogni avventura.
+                </p>
+            </div>
+        </section>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 Pathfinder One-Shot. Tutti i diritti riservati.</p>
+            <p>Pathfinder è un marchio registrato di Paizo Inc.</p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
