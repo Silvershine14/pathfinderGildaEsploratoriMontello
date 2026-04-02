@@ -430,29 +430,35 @@ function initLoginPage() {
 /**
  * Inizializza pagina Dashboard
  */
+/** Inizializza pagina Dashboard CON WAIT sull'autenticazione */
 function initDashboard() {
     log('Inizializzazione Dashboard');
 
-    // Controlla se loggato, altrimenti reindirizza
-    if (!isUserLoggedIn()) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    const user = getCurrentUser();
+    // Mostra “Caricamento...” fino a che non abbiamo informazioni certe
     const userInfo = document.querySelector('.user-info');
-    
-    if (userInfo && user) {
-        userInfo.innerHTML = `
-            <h3>Benvenuto, ${user.name}!</h3>
-            <p>Email: ${user.email}</p>
-            <p>Loggato da: ${new Date(user.loginTime).toLocaleDateString('it-IT')}</p>
-        `;
-    }
+    if (userInfo) userInfo.innerHTML = "<h3>Caricamento profilo...</h3>";
 
-    // Carica personaggi (placeholder)
-    loadCharacters();
+    auth.onAuthStateChanged(function(user) {
+        if (!user) {
+            // Non autenticato, reindirizza a login
+            log('Utente NON autenticato, torno su login');
+            window.location.href = 'login.html';
+            return;
+        }
+        // Autenticato!
+        log('Utente autenticato:', user.email);
+        if (userInfo) {
+            userInfo.innerHTML = `
+                <h3>Benvenuto, ${user.displayName || user.email.split('@')[0]}!</h3>
+                <p>Email: ${user.email}</p>
+                <p>Ultimo accesso: ${new Date(user.metadata.lastSignInTime).toLocaleString('it-IT')}</p>
+            `;
+        }
+        // Carica i personaggi ecc.
+        loadCharacters();
+    });
 }
+
 
 /**
  * Carica personaggi della dashboard
