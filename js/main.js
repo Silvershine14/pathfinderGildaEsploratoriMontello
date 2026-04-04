@@ -44,6 +44,41 @@ const adventures = [
     }
 ];
 
+const schede = [
+    {
+        id: 1,
+        title: "Scheda personaggio editabile",
+        level: "-",
+        classe: "4-5 ore",
+        description: "Scheda pdf editabile",
+        image: "assets/images/placeholder-1.jpg"
+    },
+    {
+        id: 2,
+        title: "Fede Oscura",
+        level: "3",
+        classe: "Chierico",
+        description: "Scheda pdf di esempio",
+        image: "assets/images/fedeOscura.jpg"
+    },
+    {
+        id: 3,
+        title: "Grande Esca",
+        level: "3",
+        classe: "Guerriero",
+        description: "Scheda pdf di esempio",
+        image: "assets/images/grandeEsca.jpg"
+    },
+    {
+        id: 4,
+        title: "Bum Bum",
+        level: "3",
+        classe: "Ranger",
+        description: "Scheda pdf di esempio",
+        image: "assets/images/bumBumM.jpg"
+    }
+];
+
 // =====================================================
 // UTILITY FUNCTIONS
 // =====================================================

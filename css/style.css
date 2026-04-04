@@ -347,6 +347,60 @@ p {
     align-self: flex-start;
 }
 
+
+/* =====================================================
+   FEATURED SHEETS SECTION
+   ===================================================== */
+
+.featured-files {
+    background-color: white;
+    padding: var(--spacing-xl) var(--spacing-md);
+}
+
+.files-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.file-card {
+    background-color: var(--color-light);
+    border: 2px solid var(--color-primary);
+    border-radius: 8px;
+    padding: var(--spacing-lg);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-secondary);
+}
+
+.file-card h3 {
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.file-meta {
+    font-size: 0.9rem;
+    color: var(--color-accent);
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+}
+
+.file-card p {
+    flex-grow: 1;
+    margin-bottom: var(--spacing-md);
+}
+
+.file-card .btn-secondary {
+    align-self: flex-start;
+}
+
 /* =====================================================
    GALLERY SECTION
    ===================================================== */
@@ -604,6 +658,9 @@ p {
 
     .adventures-grid,
     .gallery-grid,
+    .files-grid {
+        grid-template-columns: 1fr;
+    }
     .character-grid {
         grid-template-columns: 1fr;
     }
