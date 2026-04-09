@@ -25,6 +25,8 @@
             <ul class="nav-menu">
                 <li><a href="index.html">Home</a></li>
                 <li><a href="one-shots.html">Avventure</a></li>
+                <li><a href="per-iniziare.html">Per iniziare</a></li>
+                <li><a href="index.html#schede">Documenti</a></li>
                 <li><a href="index.html#gallery">Galleria</a></li>
                 <li><a href="#" onclick="logoutUser(); return false;" class="btn-logout">Esci</a></li>
             </ul>
@@ -51,6 +53,22 @@
                 I personaggi che hanno partecipato alle tue avventure
             </p>
             <div class="character-grid"></div>
+            <!-- NPCs visible to Masters -->
+            <div id="npc-section" style="margin-top:1.5rem; display:none;">
+                <h3>NPC e Schede NPC</h3>
+                <div id="npc-grid"></div>
+            </div>
+            <!-- All sheets (for Masters and Admins) -->
+            <div id="all-sheets-section" style="margin-top:1.5rem; display:none;">
+                <h3>Tutte le Schede</h3>
+                <div id="all-sheets-grid"></div>
+            </div>
+            <!-- Admin panel -->
+            <div id="admin-panel" style="margin-top:1.5rem; display:none; background:#fff; padding:1rem; border-radius:8px;">
+                <h3>Area Amministrativa</h3>
+                <p>Gestisci utenti e ruoli</p>
+                <div id="users-list"></div>
+            </div>
         </section>
 
         <!-- SESSIONS HISTORY -->
@@ -62,6 +80,15 @@
                 </p>
             </div>
         </section>
+
+        <section id="message-board" style="margin-top: 3rem;">
+            <h2>Bacheca Messaggi</h2>
+            <form id="messageForm">
+                <textarea id="messageText" rows="4" placeholder="Scrivi un messaggio..." required></textarea>
+                <button type="submit">Invia</button>
+            </form>
+            <div id="messagesList"></div>
+            </section>
     </div>
 
     <!-- FOOTER -->

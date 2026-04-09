@@ -20,11 +20,11 @@ let app, auth, db, storage;
 const adventures = [
     {
         id: 1,
-        title: "Il Sigillo Rotto",
-        level: "1-3",
-        duration: "4-5 ore",
-        description: "Una tomba antica è stata profanata. I non-morti emergono dalle ombre. I vostri eroici avventurieri devono affrontare questa minaccia prima che la città cada nel caos.",
-        image: "assets/images/placeholder-1.jpg"
+        title: "La maschera del Barracuda",
+        level: "3",
+        duration: "3-4 ore",
+        description: "La vita è molto dura nei ghetti di una grande città. Uniti dalle avversità e dall'ambizione, la vostra piccola banda di malviventi è sempre riuscita a rimanere fieramente indipendente. Ma era solo questione di tempo prima di commettere un passo falso. Volevate fare un colpo grosso, che vi avrebbe cambiato la vita, ma avete scelto la preda sbagliata e ora siete in debito con il Barracuda...",
+        image: "assets/images/mascheraBarracuda.jpeg"
     },
     {
         id: 2,
@@ -49,7 +49,7 @@ const schede = [
         id: 1,
         title: "Scheda personaggio editabile",
         level: "-",
-        classe: "4-5 ore",
+        classe: "-",
         description: "Scheda pdf editabile",
         image: "assets/images/placeholder-1.jpg"
     },
@@ -104,6 +104,34 @@ function hideElement(selector) {
  */
 function log(message, data = null) {
     console.log(`[PATHFINDER] ${message}`, data || '');
+}
+
+/**
+ * Helper UI: render a simple loading placeholder inside a container element
+ */
+function renderLoading(container, text = 'Caricamento...') {
+    if (!container) return;
+    container.innerHTML = `<div class="loading">⏳ ${text}</div>`;
+}
+
+/**
+ * Restituisce un link di visualizzazione/download per un file Google Drive.
+ * Accetta o un `driveUrl` completo o un `driveFileId` (id del file Drive).
+ */
+function buildDriveLink(driveUrlOrId, forDownload = false) {
+    if (!driveUrlOrId) return null;
+    // if it looks like a full URL, return as-is
+    try {
+        const url = new URL(driveUrlOrId);
+        return url.href;
+    } catch (_) {
+        // not a full url, assume it's a fileId
+        const fileId = driveUrlOrId;
+        if (forDownload) {
+            return `https://drive.google.com/uc?id=${fileId}&export=download`;
+        }
+        return `https://drive.google.com/file/d/${fileId}/view`;
+    }
 }
 
 // =====================================================
@@ -276,7 +304,7 @@ async function loadAdventures() {
     const container = document.querySelector('.adventures-grid');
     if (!container) return;
 
-    container.innerHTML = '<p style="grid-column: 1/-1; text-align: center;">Caricamento avventure...</p>';
+    renderLoading(container, 'Caricamento avventure...');
 
     try {
         // Prova a caricare da Firestore
@@ -322,7 +350,7 @@ function renderAdventures(adventuresList) {
         card.className = 'adventure-card';
         card.innerHTML = `
             <h3>${adventure.title}</h3>
-            <p class="adventure-meta">Livello ${adventure.level} • ${adventure.duration}</p>
+            <p class="adventure-meta">Livello ${adventure.level} • Durata ${adventure.duration}</p>
             <p>${adventure.description}</p>
             <a href="one-shots.html?id=${adventure.id}" class="btn-secondary">Leggi di più</a>
         `;
@@ -472,16 +500,18 @@ function initDashboard() {
     // Mostra “Caricamento...” fino a che non abbiamo informazioni certe
     const userInfo = document.querySelector('.user-info');
     if (userInfo) userInfo.innerHTML = "<h3>Caricamento profilo...</h3>";
-
-    auth.onAuthStateChanged(function(user) {
+    // Use onAuthStateChanged to wait until Firebase finishes restoring the session
+    auth.onAuthStateChanged(async function(user) {
         if (!user) {
             // Non autenticato, reindirizza a login
             log('Utente NON autenticato, torno su login');
             window.location.href = 'login.html';
             return;
         }
-        // Autenticato!
+
         log('Utente autenticato:', user.email);
+
+        // Show basic user info
         if (userInfo) {
             userInfo.innerHTML = `
                 <h3>Benvenuto, ${user.displayName || user.email.split('@')[0]}!</h3>
@@ -489,11 +519,334 @@ function initDashboard() {
                 <p>Ultimo accesso: ${new Date(user.metadata.lastSignInTime).toLocaleString('it-IT')}</p>
             `;
         }
-        // Carica i personaggi ecc.
-        loadCharacters();
+
+        // Fetch user profile from Firestore to get the role and other metadata
+        try {
+            const userDoc = await db.collection('users').doc(user.uid).get();
+            const profile = userDoc.exists ? userDoc.data() : { role: 'player', displayName: user.displayName };
+            const role = profile.role || 'player';
+
+            log('Profilo utente caricato da Firestore:', { uid: user.uid, role });
+
+            // Render UI based on role
+            renderRoleUI(role, user.uid);
+
+            // Load default sections
+            loadCharacters();
+            loadMessages();
+
+            // Role-specific data
+            if (role === 'master' || role === 'admin') {
+                loadNPCs();
+                loadAllSheets();
+            }
+
+            if (role === 'admin') {
+                loadAllUsers();
+            }
+
+        } catch (err) {
+            log('Errore caricamento profilo utente:', err);
+            // Fallback: treat as player
+            renderRoleUI('player', user.uid);
+            loadCharacters();
+            loadMessages();
+        }
     });
 }
 
+/**
+ * Mostra/nasconde sezioni della dashboard in base al ruolo
+ */
+function renderRoleUI(role, uid) {
+    log('Renderizzazione UI per ruolo:', role);
+
+    const npcSection = document.getElementById('npc-section');
+    const allSheetsSection = document.getElementById('all-sheets-section');
+    const adminPanel = document.getElementById('admin-panel');
+
+    // Reset
+    if (npcSection) npcSection.style.display = 'none';
+    if (allSheetsSection) allSheetsSection.style.display = 'none';
+    if (adminPanel) adminPanel.style.display = 'none';
+
+    if (role === 'player') {
+        // Players only see their character grid and adventures (default)
+        log('Utente PLAYER: mostro solo le schede personali');
+    } else if (role === 'master') {
+        // Masters see NPCs and all sheets
+        if (npcSection) npcSection.style.display = 'block';
+        if (allSheetsSection) allSheetsSection.style.display = 'block';
+        log('Utente MASTER: mostro NPC e tutte le schede');
+    } else if (role === 'admin') {
+        // Admins see everything, including admin panel
+        if (npcSection) npcSection.style.display = 'block';
+        if (allSheetsSection) allSheetsSection.style.display = 'block';
+        if (adminPanel) adminPanel.style.display = 'block';
+        log('Utente ADMIN: mostro tutte le funzionalità');
+    }
+}
+
+/**
+ * Carica NPC - esempio (sostituire con chiamata Firestore se disponibile)
+ */
+const _userProfileCache = {};
+
+async function fetchUserProfile(uid) {
+    if (!uid) return null;
+    if (_userProfileCache[uid]) return _userProfileCache[uid];
+    try {
+        const doc = await db.collection('users').doc(uid).get();
+        if (!doc.exists) return null;
+        const data = doc.data();
+        _userProfileCache[uid] = data;
+        return data;
+    } catch (err) {
+        log('Errore fetchUserProfile:', err);
+        return null;
+    }
+}
+
+/**
+ * Carica NPC da Firestore. Solo master/admin possono vedere gli NPC.
+ */
+async function loadNPCs() {
+    const container = document.getElementById('npc-grid');
+    if (!container) return;
+
+    renderLoading(container, 'Caricamento NPC...');
+
+    const current = auth.currentUser;
+    if (!current) {
+        container.innerHTML = '<p>Utente non autenticato</p>';
+        return;
+    }
+
+    try {
+        const profileDoc = await db.collection('users').doc(current.uid).get();
+        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
+        if (!(role === 'master' || role === 'admin')) {
+            container.innerHTML = '<p>Accesso negato agli NPC</p>';
+            return;
+        }
+
+        const snapshot = await db.collection('npcs').orderBy('createdAt', 'desc').get();
+
+        if (snapshot.empty) {
+            container.innerHTML = '<p>Nessun NPC presente.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+        snapshot.forEach(doc => {
+            const npc = doc.data();
+            const el = document.createElement('div');
+            el.className = 'character-card';
+            el.innerHTML = `
+                <h4>${npc.name || 'NPC senza nome'}</h4>
+                <p><b>Classe:</b> ${npc.class || '—'}</p>
+                <p><b>Stirpe:</b> ${npc.ancestry || '—'}</p>
+                <p><b>Livello:</b> ${npc.level || '—'}</p>
+                <p><b>Note:</b> ${npc.desc || ''}</p>
+                <p><b>Scheda:</b> <a href="${npc.driveUrl || ''}" target="_blank">clicca</a></p>
+            `;
+            container.appendChild(el);
+        });
+
+    } catch (err) {
+        log('Errore caricamento NPC da Firestore:', err);
+        container.innerHTML = '<p>Errore caricamento NPC</p>';
+    }
+}
+
+/**
+ * Carica tutte le schede (master/admin) - esempio
+ */
+async function loadAllSheets() {
+    const container = document.getElementById('all-sheets-grid');
+    if (!container) return;
+    renderLoading(container, 'Caricamento schede...');
+
+    const current = auth.currentUser;
+    if (!current) {
+        container.innerHTML = '<p>Utente non autenticato</p>';
+        return;
+    }
+
+    try {
+        const profileDoc = await db.collection('users').doc(current.uid).get();
+        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
+        let query;
+        if (role === 'player') {
+            // Players only see their own characters
+            query = db.collection('characters').where('owner', '==', current.uid).orderBy('createdAt', 'desc');
+        } else {
+            // Masters and Admins see all characters
+            query = db.collection('characters').orderBy('createdAt', 'desc');
+        }
+
+        const snapshot = await query.get();
+
+        if (snapshot.empty) {
+            container.innerHTML = '<p>Nessuna scheda trovata.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        // For name resolution of owners, use cache
+        for (const doc of snapshot.docs) {
+            const ch = doc.data();
+            let ownerLabel = ch.ownerDisplayName || ch.ownerEmail || ch.owner || '—';
+
+            if (ch.owner && !ch.ownerDisplayName && typeof ch.owner === 'string' && ch.owner.length > 10) {
+                // likely a uid - try to fetch profile
+                const ownerProfile = await fetchUserProfile(ch.owner);
+                if (ownerProfile) ownerLabel = ownerProfile.displayName || ownerProfile.email || ch.owner;
+            }
+
+            const el = document.createElement('div');
+            el.className = 'character-card';
+            el.innerHTML = `
+                <h4>${ch.name || 'personaggio senza nome'}</h4>
+                <p><b>Classe:</b> ${ch.class || '—'}</p>
+                <p><b>Stirpe:</b> ${ch.ancestry || '—'}</p>
+                <p><b>Livello:</b> ${ch.level || '—'}</p>
+                <p><b>Note:</b> ${ch.desc || ''}</p>
+                <p><b>Scheda:</b> <a href="${ch.driveUrl || ''}" target="_blank">clicca</a></p>
+            `;
+            container.appendChild(el);
+        }
+
+    } catch (err) {
+        log('Errore caricamento schede da Firestore:', err);
+        container.innerHTML = `<p>Errore caricamento schede: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
+    }
+}
+
+/**
+ * Admin: carica la lista di tutti gli utenti per gestione ruoli
+ */
+async function loadAllUsers() {
+    const container = document.getElementById('users-list');
+    if (!container) return;
+
+    renderLoading(container, 'Caricamento utenti...');
+
+    try {
+        const snapshot = await db.collection('users').orderBy('createdAt', 'asc').get();
+        container.innerHTML = '';
+
+        snapshot.forEach(doc => {
+            const u = doc.data();
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.justifyContent = 'space-between';
+            row.style.padding = '0.5rem 0';
+            row.innerHTML = `
+                <div>
+                    <strong>${u.displayName || u.email}</strong> <br>
+                    <small>${u.email}</small>
+                </div>
+                <div>
+                    <select data-uid="${doc.id}" class="role-select">
+                        <option value="player" ${u.role === 'player' ? 'selected' : ''}>Player</option>
+                        <option value="master" ${u.role === 'master' ? 'selected' : ''}>Master</option>
+                        <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                </div>
+            `;
+            container.appendChild(row);
+        });
+
+        // Attach change handlers
+        container.querySelectorAll('.role-select').forEach(sel => {
+            sel.addEventListener('change', async (e) => {
+                const newRole = e.target.value;
+                const uid = e.target.getAttribute('data-uid');
+                // show feedback: disable select while updating
+                e.target.disabled = true;
+                const original = e.target.value;
+                try {
+                    await changeUserRole(uid, newRole);
+                } catch (_) {
+                    // ignore - changeUserRole shows error
+                } finally {
+                    e.target.disabled = false;
+                }
+            });
+        });
+
+    } catch (err) {
+        log('Errore caricamento utenti per admin:', err);
+        container.innerHTML = `<p>Errore caricamento utenti: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
+    }
+}
+
+/**
+ * Admin: cambia ruolo di un utente in Firestore
+ */
+async function changeUserRole(uid, newRole) {
+    try {
+        await db.collection('users').doc(uid).update({ role: newRole });
+        log('Ruolo utente aggiornato:', { uid, newRole });
+        alert('Ruolo aggiornato con successo');
+        // refresh list
+        loadAllUsers();
+    } catch (err) {
+        log('Errore aggiornamento ruolo utente:', err);
+        alert('Errore aggiornamento ruolo: ' + err.message);
+    }
+}
+async function postMessage(text) {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    await db.collection('messages').add({
+        text: text.trim(),
+        uid: user.uid,
+        author: user.displayName || user.email.split('@')[0],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+}
+
+async function loadMessages() {
+    const container = document.getElementById('messagesList');
+    if (!container) return;
+    renderLoading(container, 'Caricamento messaggi...');
+
+    const snapshot = await db.collection('messages')
+        .orderBy('createdAt', 'desc')
+        .limit(20)
+        .get();
+
+    container.innerHTML = '';
+    snapshot.forEach(doc => {
+        const msg = doc.data();
+        const date = msg.createdAt ? msg.createdAt.toDate().toLocaleString('it-IT') : '';
+        container.innerHTML += `
+            <div class="message-item">
+                <strong>${msg.author}</strong> <span>${date}</span>
+                <p>${msg.text}</p>
+            </div>
+        `;
+    });
+}
+
+const messageForm = document.getElementById('messageForm');
+if (messageForm) {
+    messageForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = document.getElementById('messageText').value;
+        if (!text.trim()) return;
+        await postMessage(text);
+        document.getElementById('messageText').value = '';
+        loadMessages();
+    });
+}
 
 /**
  * Carica personaggi della dashboard
@@ -509,18 +862,21 @@ function loadCharacters() {
             class: "Guerriero",
             level: 5,
             ancestry: "Nano"
+            , driveFileId: '1a2B3cExampleFileId'
         },
         {
             name: "Sylvaria Moonwhisper",
             class: "Maga",
             level: 4,
             ancestry: "Elfo"
+            , driveFileId: '1d4E5fExampleFileId'
         },
         {
             name: "Thorne Swiftblade",
             class: "Ladro",
             level: 5,
             ancestry: "Umano"
+            , driveFileId: '1g6H7iExampleFileId'
         }
     ];
 
@@ -529,6 +885,9 @@ function loadCharacters() {
     characters.forEach((char, index) => {
         const card = document.createElement('div');
         card.className = 'character-card';
+
+        const driveLink = buildDriveLink(char.driveUrl || char.driveFileId);
+
         card.innerHTML = `
             <h3>${char.name}</h3>
             <div class="character-meta">
@@ -536,7 +895,7 @@ function loadCharacters() {
                 <p><strong>Livello:</strong> ${char.level}</p>
                 <p><strong>Stirpe:</strong> ${char.ancestry}</p>
             </div>
-            <a href="#" class="btn-secondary">Visualizza Scheda</a>
+            ${driveLink ? `<a href="${driveLink}" class="btn-secondary" target="_blank" rel="noopener">Apri Scheda</a>` : `<a href="#" class="btn-secondary">Visualizza Scheda</a>`}
         `;
         container.appendChild(card);
     });

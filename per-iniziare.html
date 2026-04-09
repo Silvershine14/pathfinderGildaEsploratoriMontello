@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Per iniziare – G.E.M.</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:wght@400;600&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+</head>
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-brand">
+                <h1>Gilda Esploratori del Montello</h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="one-shots.html">Avventure</a></li>
+                <li><a href="per-iniziare.html" class="active">Per iniziare</a></li>
+                <li><a href="index.html#schede">Documenti</a></li>
+                <li><a href="index.html#gallery">Galleria</a></li>
+                <li><a href="dashboard.html" class="btn-login">Area Riservata</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container" style="padding: 3rem 1rem; max-width: 900px;">
+        <h2>Per iniziare</h2>
+        <p>Questa pagina raccoglie informazioni utili per i giocatori alle prime armi: cenni sulla storia e geografia di <strong>Golarion</strong>, le divinità principali, le stirpi disponibili e le classi giocabili in Pathfinder 2e.</p>
+
+        <section style="margin-top: 2rem;">
+            <h3>Storia e Geografia di Golarion</h3>
+            <p>Golarion è un mondo ricco di storia, con continenti variegati come <strong>Avistan</strong> e <strong>Garund</strong>. Le nazioni, le città e le regioni hanno storie profonde, conflitti e leggende che influenzano le missioni. Per iniziare, concentrati su una singola regione: conoscerne la capitale, i punti di interesse e le minacce locali è più che sufficiente per i primi one-shot.</p>
+            <ul>
+                <li><strong>Avistan</strong>: il continente principale per molte campagne ufficiali, con città-stato e regni diversi.</li>
+                <li><strong>Varie città</strong>: ogni città ha leggi, fazioni e opportunità uniche per l'avventura.</li>
+                <li><strong>Mappa</strong>: scarica la mappa rapida di Golarion qui sotto per orientarti.</li>
+            </ul>
+            <div style="display:flex; gap:1rem; align-items:flex-start; margin-top:1rem;">
+                <img src="assets/images/Golarion_map_01.png" alt="Mappa di Golarion" style="max-width:320px; border:1px solid #ddd; padding:6px; background:#fff;" />
+                <div>
+                    <p><a href="assets/images/Golarion_map_01.png" download class="btn-secondary">Scarica mappa</a></p>
+                    <p style="color:#666;">Per dettagli regionali usa le risorse consigliate.</p>
+                </div>
+            </div>
+        </section>
+
+        <section style="margin-top: 2rem;">
+            <h3>Divinità (cenni)</h3>
+            <p>Le divinità in Pathfinder hanno influenza culturale, magica e narrativa. Anche se non giochi un chierico o un paladino, conoscere le divinità aiuta a definire retroscena e motivazioni.</p>
+            <ul>
+                <li><strong>Desna</strong> — dea dei viaggi, dei sogni e delle stelle. Ideale per personaggi itineranti, ladri e avventurieri che amano libertà e speranza.</li>
+                <li><strong>Erastil</strong> — protettore della comunità rurale, caccia e famiglia. Spesso venerato da ranger, cacciatori e contadini.</li>
+                <li><strong>Gorum</strong> — dio della guerra, del conflitto e della forza bruta. Adatto a barbari e guerrieri che cercano gloria in battaglia.</li>
+                <li><strong>Iomedae</strong> — dea dell'onore, della giustizia e degli eroi. Patrono tipico di paladini e cavalieri.</li>
+                <li><strong>Desna, Erastil, Gorum, Iomedae</strong> sono solo esempi: Golarion ospita centinaia di divinità e culti locali che possono colorare il background del tuo personaggio.</li>
+            </ul>
+            <p>Quando scegli una divinità, rifletti su come le sue esigenze e valori influenzano le scelte del tuo personaggio e la relazione con il gruppo.</p>
+        </section>
+
+        <section style="margin-top: 2rem;">
+            <h3>Stirpi (introduzione)</h3>
+            <p>Le stirpi (ancestries) descrivono l'origine biologica e culturale del personaggio. Ogni stirpe offre tratti, talenti e opzioni uniche.</p>
+            <div style="display:flex; gap:1rem; align-items:center;">
+                <img src="assets/images/ancestries.png" alt="Stirpi" style="max-width:220px; border:1px solid #ddd; padding:6px; background:#fff;" />
+                <div>
+                    <p>Scarica il riepilogo stirpe: <a href="assets/images/ancestries.png" download class="btn-secondary">Scarica immagine delle Stirpi</a></p>
+                </div>
+            </div>
+            <ul>
+                <li><strong>Nani</strong> — tozzi, robusti e legati alla terra. Spesso testardi, fieri e devoti. Bonus a costituzione e saggezza.</li>
+                <li><strong>Elfi</strong> — alti e dalla lunga vita, con una forte tradizione artistica e magica. Bonus a destrezza e intelligenza.</li>
+                <li><strong>Gnomi</strong> — bassi e resistenti, con una curiosità insaziabile e abitudini eccentriche. Bonus a costituzione e carisma.</li>
+                <li><strong>Goblin</strong> — piccoli e molti energici. Hanno passato millenni ad essere temuti e incompresi. Bonus a destrezza e carisma.</li>
+                <li><strong>Halfling</strong> — piccoli e perseveranti, con una grande curiosità e umorismo. Bonus a destrezza e saggezza.</li>
+                <li><strong>Umani</strong> — estremamente versatili e adattabili, con grande potenziale e ambizione. Due bonus liberi.</li>
+                <li><strong>Leshy</strong> — spiriti immortali della natura che si manifestano in piccole piante umanoidi, per sperimentare il mondo. Bonus a costituzione e saggezza.</li>
+                <li><strong>Orchi</strong> — forti e fieri, orientati al combattimento e alla sopravvivenza. Due bonus liberi.</li>
+            </ul>
+
+            <p>Ogni stirpe ha <em>heritages</em> (varianti) e talenti che permettono di personalizzare ulteriormente il personaggio; consulta il Master per i dettagli e le opzioni consigliate.</p>
+        </section>
+
+        <section style="margin-top: 2rem;">
+            <h3>Classi giocabili (introduzione)</h3>
+            <p>Le classi definiscono il ruolo del personaggio in combattimento, nelle interazioni sociali e nelle situazioni narrative. Qui sotto trovi una breve panoramica delle classi disponibili nel nostro gruppo, con consigli per principianti.</p>
+            <div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+                <img src="assets/images/classes.png" alt="Classi" style="max-width:220px; border:1px solid #ddd; padding:6px; background:#fff;" />
+                <div>
+                    <p>Scarica il riepilogo classi: <a href="assets/images/classes.png" download class="btn-secondary">Scarica immagine delle Classi</a></p>
+                </div>
+            </div>
+            <ul>
+                <li><strong>Bardo</strong> — distrae gli avversari ed inspira gli alleati con esibizioni artistiche e i segreti dell'occulto.</li>
+                <li><strong>Chierico</strong> — richiama il potere di una divinità per lanciare incantesimi che aiutino gli alleati o danneggino gli avversari.</li>
+                <li><strong>Druido</strong> — usa la magia del mondo naturale per potenziare gli alleati e colpire gli avversari.</li>
+                <li><strong>Guerriero</strong> — maestra delle armi, delle tecniche marziali e di potenti combinazioni di attacco.</li>
+                <li><strong>Ranger</strong> — abile nello sfruttare l'ambiente, le trappole e gli alleati animali per contrastare gli avversari.</li>
+                <li><strong>Canaglia</strong> — specializzata nel sorprendere gli avversari con le molte abilità a disposizione.</li>
+                <li><strong>Strega</strong> — incantatrice che lancia incantesimi e maledizioni attraverso un potente famiglio di un misterioso patrono.</li>
+                <li><strong>Mago</strong> — profonda conoscitrice della magia, lancia mirabili incantesimi.</li>
+            </ul>
+            <p>Per i principianti consigliamo <strong>Guerriero</strong> o <strong>Chierico</strong> per concentrarsi sulle meccaniche base. 
+            Se preferisci ruoli creativi o di supporto, prova <strong>Bardo</strong>  o <strong>Ranger.</strong> </p>
+        </section>
+
+        <section style="margin-top:2rem;">
+            <h3>Tutorial passo-passo: creare la prima scheda</h3>
+            <ol>
+                <li><strong>Scegli un concetto</strong>: che tipo di personaggio vuoi interpretare? Può essere un concetto semplice o complesso, ma ti darà un'idea di massima su come proseguire. Parlane con il Master o con gli altri giocatori. Magari i personaggi potrebbero essere legati in qualche modo? Rivali? Amici? Parenti?</li>
+                <li><strong>Scegli la stirpe</strong>: leggi il riepilogo stirpe e scegli quella che si adatta al concetto (forza fisica, magia, supporto).</li>
+                <li><strong>Scegli la classe</strong>: seleziona il ruolo desiderato (tank, supporto, DPS, utility) e consulta il PDF classi per abilità iniziali.</li>
+                <li><strong>Imposta le statistiche</strong>: assegna i punteggi principali (Forza, Destrezza, Costituzione, Intelligenza, Saggezza, Carisma) seguendo il metodo della tua campagna.</li>
+                <li><strong>Scegli background e divinità</strong>: questo definisce competenze extra, lingue e motivazioni.</li>
+                <li><strong>Seleziona talenti e abilità</strong>: segui le opzioni iniziali della classe; per i principianti preferisci scelte semplici e efficaci.</li>
+                <li><strong>Equipaggiamento</strong>: prendi armi/armature coerenti con la classe e il ruolo; non complicare troppo l'inventario all'inizio.</li>
+                <li><strong>Compila la scheda</strong>: usa la scheda PDF editabile disponibile nella sezione Documenti e salva una copia su Google Drive o localmente.</li>
+                <li><strong>Condividi con il Master</strong>: invia link della scheda al GM o caricala nello spazio della campagna.</li>
+                <li><strong>Gioca e impara</strong>: il primo gioco serve per capire le meccaniche; non aver paura di chiedere aiuto al Master o agli altri giocatori.</li>
+            </ol>
+        </section>
+
+        <section style="margin-top:2rem;">
+            <h3>FAQ</h3>
+            <details>
+                <summary>Ho bisogno di pagare per partecipare?</summary>
+                <p>No, è tutto gratuito!</p>
+            </details>
+            <details>
+                <summary>Quale classe è la più semplice?</summary>
+                <p>Guerriero e Chierico sono le classi più semplici per iniziare: il guerriero insegna il combattimento, il chierico introduce magia di supporto.</p>
+            </details>
+            <details>
+                <summary>Posso modificare la scheda dopo la creazione?</summary>
+                <p>Sì, nessun problema. Puoi anche cambiare totalmente il personaggio se non ti trovi bene. Parla con il Master per eventuali ritocchi o cambi di background. Alcune modifiche in partita potrebbero richiedere consenso del GM.</p>
+            </details>
+            <details>
+                <summary>Come condivido il file Drive correttamente?</summary>
+                <p>Imposta il file Drive su "Chiunque abbia il link" in modalità visualizzazione o condividilo direttamente con il Master.</p>
+            </details>
+        </section>
+
+        <section style="margin-top: 2rem;">
+            <h3>Risorse utili</h3>
+            <ul>
+                <li><a href="https://2e.aonprd.com/" target="_blank">SRD Pathfinder 2e (AONPRD)</a> — regole base e riferimenti.</li>
+                <li><a href="https://pf2.altervista.org/wiki/Pagina_principale" target="_blank">SRD in italiano</a> - Attenzione, regole non aggiornate a Remaster! Utile per informazioni generali</li>
+                <li><a href="index.html#schede">Documenti</a> - Schede personaggio PDF editabili e schede di esempio</li>
+                <li><a href="https://chat.whatsapp.com/BF8FztLAhzLG3zCA7hjWP4">Chat</a> - Gruppo WhatsApp della Gilda per domande rapide.</li>
+            </ul>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 La Gilda degli Esploratori del Montello. Tutti i diritti riservati.</p>
+            <p>Pathfinder è un marchio registrato di Paizo Inc.</p>
+        </div>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
