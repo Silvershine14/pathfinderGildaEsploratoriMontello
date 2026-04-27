@@ -631,7 +631,7 @@ async function loadNPCs() {
             return;
         }
 
-        const snapshot = await db.collection('npcs').orderBy('createdAt', 'desc').get();
+        const snapshot = await db.collection('npcs').orderBy('name', 'desc').get();
 
         if (snapshot.empty) {
             container.innerHTML = '<p>Nessun NPC presente.</p>';
@@ -681,10 +681,10 @@ async function loadAllSheets() {
         let query;
         if (role === 'player') {
             // Players only see their own characters
-            query = db.collection('characters').where('owner', '==', current.uid).orderBy('createdAt', 'desc');
+            query = db.collection('characters').where('owner', '==', current.uid).orderBy('name', 'desc');
         } else {
             // Masters and Admins see all characters
-            query = db.collection('characters').orderBy('createdAt', 'desc');
+            query = db.collection('characters').orderBy('name', 'desc');
         }
 
         const snapshot = await query.get();
@@ -736,7 +736,7 @@ async function loadAllUsers() {
     renderLoading(container, 'Caricamento utenti...');
 
     try {
-        const snapshot = await db.collection('users').orderBy('createdAt', 'asc').get();
+        const snapshot = await db.collection('users').orderBy('displayName', 'asc').get();
         container.innerHTML = '';
 
         snapshot.forEach(doc => {
@@ -851,57 +851,122 @@ if (messageForm) {
 /**
  * Carica personaggi della dashboard
  */
-function loadCharacters() {
+//async function loadCharacters() {
+    //const container = document.querySelector('.character-grid');
+    //if (!container) return;
+
+    //// Dati di esempio
+    //const characters = [
+    //    {
+    //        name: "Baldur Ironforge",
+    //        class: "Guerriero",
+    //        level: 5,
+    //        ancestry: "Nano"
+    //        , driveFileId: '1a2B3cExampleFileId'
+    //    },
+    //    {
+    //        name: "Sylvaria Moonwhisper",
+    //        class: "Maga",
+    //        level: 4,
+    //        ancestry: "Elfo"
+    //        , driveFileId: '1d4E5fExampleFileId'
+    //    },
+    //    {
+    //        name: "Thorne Swiftblade",
+    //        class: "Ladro",
+    //        level: 5,
+    //        ancestry: "Umano"
+    //        , driveFileId: '1g6H7iExampleFileId'
+    //    }
+    //];
+
+//    container.innerHTML = '';
+
+//    characters.forEach((char, index) => {
+//        const card = document.createElement('div');
+//        card.className = 'character-card';
+
+//        const driveLink = buildDriveLink(char.driveUrl || char.driveFileId);
+
+//        card.innerHTML = `
+//            <h3>${char.name}</h3>
+//            <div class="character-meta">
+//                <p><strong>Classe:</strong> ${char.class}</p>
+//                <p><strong>Livello:</strong> ${char.level}</p>
+//                <p><strong>Stirpe:</strong> ${char.ancestry}</p>
+//            </div>
+//            ${driveLink ? `<a href="${driveLink}" class="btn-secondary" target="_blank" rel="noopener">Apri Scheda</a>` : `<a href="#" class="btn-secondary">Visualizza Scheda</a>`}
+//        `;
+//        container.appendChild(card);
+
+//    });
+
+//    log('Personaggi caricati:', characters.length);
+//}
+
+async function loadCharacters() {
     const container = document.querySelector('.character-grid');
     if (!container) return;
-
-    // Dati di esempio
-    const characters = [
-        {
-            name: "Baldur Ironforge",
-            class: "Guerriero",
-            level: 5,
-            ancestry: "Nano"
-            , driveFileId: '1a2B3cExampleFileId'
-        },
-        {
-            name: "Sylvaria Moonwhisper",
-            class: "Maga",
-            level: 4,
-            ancestry: "Elfo"
-            , driveFileId: '1d4E5fExampleFileId'
-        },
-        {
-            name: "Thorne Swiftblade",
-            class: "Ladro",
-            level: 5,
-            ancestry: "Umano"
-            , driveFileId: '1g6H7iExampleFileId'
+    renderLoading(container, 'Caricamento personaggi...');
+    const current = auth.currentUser;
+    if (!current) {
+        container.innerHTML = '<p>Utente non autenticato</p>';
+        return;
+    }
+    try {
+        // Recupera il ruolo dell'utente
+        const profileDoc = await db.collection('users').doc(current.uid).get();
+        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+        let snapshot;
+        if (role === 'player') {
+            // I player vedono SOLO i propri personaggi
+            snapshot = await db.collection('characters')
+                .where('owner', '==', current.uid)
+                .get();
+        } else {
+            // Master e Admin vedono tutti i personaggi
+            snapshot = await db.collection('characters').get();
         }
-    ];
-
-    container.innerHTML = '';
-
-    characters.forEach((char, index) => {
-        const card = document.createElement('div');
-        card.className = 'character-card';
-
-        const driveLink = buildDriveLink(char.driveUrl || char.driveFileId);
-
-        card.innerHTML = `
-            <h3>${char.name}</h3>
-            <div class="character-meta">
-                <p><strong>Classe:</strong> ${char.class}</p>
-                <p><strong>Livello:</strong> ${char.level}</p>
-                <p><strong>Stirpe:</strong> ${char.ancestry}</p>
-            </div>
-            ${driveLink ? `<a href="${driveLink}" class="btn-secondary" target="_blank" rel="noopener">Apri Scheda</a>` : `<a href="#" class="btn-secondary">Visualizza Scheda</a>`}
-        `;
-        container.appendChild(card);
-    });
-
-    log('Personaggi caricati:', characters.length);
+        if (snapshot.empty) {
+            container.innerHTML = '<p style="text-align: center; padding: 2rem;">Nessun personaggio trovato. Contatta il master per aggiungere il tuo personaggio.</p>';
+            return;
+        }
+        // Ordina i risultati lato client per createdAt (dal più recente)
+        const characters = snapshot.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .sort((a, b) => {
+                const dateA = a.createdAt?.toMillis() || 0;
+                const dateB = b.createdAt?.toMillis() || 0;
+                return dateB - dateA; // Ordine decrescente
+            });
+        container.innerHTML = '';
+        // Itera sui personaggi ordinati e crea le card
+        characters.forEach(char => {
+            const card = document.createElement('div');
+            card.className = 'character-card';
+            const driveLink = buildDriveLink(char.driveUrl || char.driveFileId);
+            card.innerHTML = `
+                <h3>${char.name || 'Personaggio senza nome'}</h3>
+                <div class="character-meta">
+                    <p><strong>Classe:</strong> ${char.class || '—'}</p>
+                    <p><strong>Livello:</strong> ${char.level || '—'}</p>
+                    <p><strong>Stirpe:</strong> ${char.ancestry || '—'}</p>
+                </div>
+                ${char.desc ? `<p><small>${char.desc}</small></p>` : ''}
+                ${driveLink ?
+                    `<a href="${driveLink}" class="btn-secondary" target="_blank" rel="noopener">Apri Scheda</a>` :
+                    `<span class="btn-secondary" style="opacity: 0.5; cursor: not-allowed;">Scheda non disponibile</span>`
+                }
+            `;
+            container.appendChild(card);
+        });
+        log('Personaggi caricati:', characters.length);
+    } catch (err) {
+        log('Errore caricamento personaggi da Firestore:', err);
+        container.innerHTML = `<p style="color: red; text-align: center;">Errore caricamento personaggi: ${err.message}</p>`;
+    }
 }
+
 
 // =====================================================
 // DOCUMENT READY / PAGE INITIALIZATION
