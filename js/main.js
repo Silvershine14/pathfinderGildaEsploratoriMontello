@@ -907,16 +907,20 @@ if (messageForm) {
 async function loadCharacters() {
     const container = document.querySelector('.character-grid');
     if (!container) return;
+
     renderLoading(container, 'Caricamento personaggi...');
+
     const current = auth.currentUser;
     if (!current) {
         container.innerHTML = '<p>Utente non autenticato</p>';
         return;
     }
+
     try {
         // Recupera il ruolo dell'utente
         const profileDoc = await db.collection('users').doc(current.uid).get();
         const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
         let snapshot;
         if (role === 'player') {
             // I player vedono SOLO i propri personaggi
@@ -927,30 +931,46 @@ async function loadCharacters() {
             // Master e Admin vedono tutti i personaggi
             snapshot = await db.collection('characters').get();
         }
+
         if (snapshot.empty) {
             container.innerHTML = '<p style="text-align: center; padding: 2rem;">Nessun personaggio trovato. Contatta il master per aggiungere il tuo personaggio.</p>';
             return;
         }
+
         // Ordina i risultati lato client per createdAt (dal più recente)
         const characters = snapshot.docs
             .map(doc => ({ id: doc.id, ...doc.data() }))
             .sort((a, b) => {
                 const dateA = a.createdAt?.toMillis() || 0;
                 const dateB = b.createdAt?.toMillis() || 0;
-                return dateB - dateA; // Ordine decrescente
+                return dateB - dateA;
             });
+
         container.innerHTML = '';
-        // Itera sui personaggi ordinati e crea le card
-        characters.forEach(char => {
+
+        // Risolvi gli owner UID in nomi
+        for (const char of characters) {
+            let ownerLabel = char.ownerDisplayName || '—';
+
+            // Se c'è un owner UID ma non c'è ownerDisplayName, fai la query
+            if (char.owner && !char.ownerDisplayName) {
+                const ownerProfile = await fetchUserProfile(char.owner);
+                if (ownerProfile) {
+                    ownerLabel = ownerProfile.displayName || ownerProfile.email || char.owner;
+                }
+            }
+
             const card = document.createElement('div');
             card.className = 'character-card';
             const driveLink = buildDriveLink(char.driveUrl || char.driveFileId);
+
             card.innerHTML = `
                 <h3>${char.name || 'Personaggio senza nome'}</h3>
                 <div class="character-meta">
+                    <p><strong>Stirpe:</strong> ${char.ancestry || '—'}</p>
                     <p><strong>Classe:</strong> ${char.class || '—'}</p>
                     <p><strong>Livello:</strong> ${char.level || '—'}</p>
-                    <p><strong>Stirpe:</strong> ${char.ancestry || '—'}</p>
+                    <p><strong>Giocatore:</strong> ${ownerLabel}</p>
                 </div>
                 ${char.desc ? `<p><small>${char.desc}</small></p>` : ''}
                 ${driveLink ?
@@ -959,8 +979,10 @@ async function loadCharacters() {
                 }
             `;
             container.appendChild(card);
-        });
+        }
+
         log('Personaggi caricati:', characters.length);
+
     } catch (err) {
         log('Errore caricamento personaggi da Firestore:', err);
         container.innerHTML = `<p style="color: red; text-align: center;">Errore caricamento personaggi: ${err.message}</p>`;
