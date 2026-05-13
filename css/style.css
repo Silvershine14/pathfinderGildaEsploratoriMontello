@@ -643,6 +643,401 @@ p {
     background-color: darkred;
 }
 
+/*=====================================================
+STAT BLOCK - NPC PATHFINDER 2E STYLE
+=====================================================*/
+.stat-block {
+    background-color: #f5f1e8;
+    border: 2px solid #2c2418;
+    border-radius: 4px;
+    padding: 0;
+    margin-bottom: var(--spacing-lg);
+    font-family: 'Lora', serif;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    box-shadow: var(--shadow);
+    max-width: 600px;
+}
+/* Header della creatura */
+.stat-block-header {
+    background-color: #2c2418;
+    color: #f5f1e8;
+    padding: var(--spacing-sm) var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid #8b4513;
+}
+
+    .stat-block-header h3 {
+        margin: 0;
+        font-family: var(--font-heading);
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #f5f1e8;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+.stat-block-level {
+    font-weight: 700;
+    font-size: 1rem;
+    color: #d4af37;
+    text-transform: uppercase;
+}
+/* Barra dei tratti */
+.stat-block-traits {
+    display: flex;
+    gap: 0.3rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: #e8dcc8;
+    border-bottom: 1px solid #2c2418;
+    flex-wrap: wrap;
+}
+
+.trait-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: white;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+    /* Colori per i vari tratti */
+    .trait-badge.alignment-ne,
+    .trait-badge.alignment-le,
+    .trait-badge.alignment-ce {
+        background-color: #5a3a8f;
+    }
+
+    .trait-badge.alignment-ng,
+    .trait-badge.alignment-n,
+    .trait-badge.alignment-cg {
+        background-color: #4a7ba7;
+    }
+
+    .trait-badge.size {
+        background-color: #8b4513;
+    }
+
+    .trait-badge.type {
+        background-color: #c41e3a;
+    }
+
+    .trait-badge.subtype {
+        background-color: #d4af37;
+        color: #2c2418;
+    }
+/* Corpo dello stat block */
+.stat-block-body {
+    padding: var(--spacing-md);
+    line-height: 1.6;
+}
+
+    .stat-block-body p {
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .stat-block-body strong {
+        color: var(--color-primary);
+        font-weight: 700;
+    }
+/* Separatore orizzontale */
+.stat-block-separator {
+    border: 0;
+    border-top: 2px solid #8b4513;
+    margin: var(--spacing-md) 0;
+}
+/* Sezioni specifiche */
+.stat-line {
+    margin-bottom: 0.4rem;
+}
+
+    .stat-line:last-child {
+        margin-bottom: 0;
+    }
+/* Simboli delle azioni */
+.action-icon {
+    font-weight: 700;
+    color: var(--color-accent);
+    margin-right: 0.2rem;
+}
+/* Sezione abilità e lingue */
+.stat-block-section {
+    margin-bottom: var(--spacing-sm);
+}
+
+    .stat-block-section:last-child {
+        margin-bottom: 0;
+    }
+/* Responsive per stat block */
+@media (max-width: 768px) {
+    .stat-block {
+        max-width: 100%;
+    }
+
+    .stat-block-header h3 {
+        font-size: 1.1rem;
+    }
+
+    .stat-block-traits {
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+
+    .trait-badge {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+    }
+}
+
+/*=====================================================
+NPC SEARCH & FILTERS
+=====================================================*/
+
+.npc-controls {
+    display: grid;
+    grid-template-columns: 2fr repeat(4, 1fr) auto;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-md);
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.npc-search-container {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.npc-search-input {
+    flex: 1;
+    padding: 0.75rem var(--spacing-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    font-family: var(--font-body);
+    transition: all 0.3s ease;
+}
+
+    .npc-search-input:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.1);
+    }
+
+    .npc-search-input::placeholder {
+        color: var(--text-muted);
+    }
+
+.npc-filter-select {
+    padding: 0.75rem var(--spacing-md);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+    .npc-filter-select:focus {
+        outline: none;
+        border-color: var(--color-primary);
+    }
+
+    .npc-filter-select:hover {
+        border-color: var(--color-primary);
+    }
+
+.npc-clear-filters {
+    padding: 0.75rem var(--spacing-md);
+    background-color: #c41e3a;
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+    .npc-clear-filters:hover {
+        opacity: 0.8;
+        transform: translateY(-2px);
+        box-shadow: var(--shadow);
+    }
+
+    .npc-clear-filters:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+.npc-results-info {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: #f0f4f8;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.npc-favorites-toggle {
+    background-color: var(--color-primary);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+}
+
+    .npc-favorites-toggle:hover {
+        opacity: 0.8;
+    }
+
+    .npc-favorites-toggle.active {
+        background-color: #d4af37;
+    }
+
+#npc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+/* Bottone preferito sullo stat block - INTEGRATO NELL'HEADER */
+.stat-block {
+    position: relative;
+    animation: fadeIn 0.3s ease-in;
+}
+
+.stat-block-header {
+    background-color: #2c2418;
+    color: #f5f1e8;
+    padding: var(--spacing-sm) var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid #8b4513;
+}
+
+.npc-favorite-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.4rem;
+    transition: all 0.3s ease;
+    padding: 0;
+    margin-left: auto;
+    margin-right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+}
+
+    .npc-favorite-btn:hover {
+        transform: scale(1.2);
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    }
+
+    .npc-favorite-btn.is-favorite {
+        color: #d4af37;
+        text-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+    }
+
+        .npc-favorite-btn.is-favorite:hover {
+            filter: drop-shadow(0 2px 6px rgba(212, 175, 55, 0.8));
+        }
+
+/* Badge per il gruppo */
+.stat-block-group-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background-color: #4a7ba7;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 3px;
+    margin-top: 0.5rem;
+    letter-spacing: 0.5px;
+}
+
+/* Nessun risultato */
+.npc-no-results {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: var(--spacing-lg);
+    color: var(--text-muted);
+}
+
+    .npc-no-results h3 {
+        margin-bottom: var(--spacing-sm);
+    }
+
+/* Responsive per mobile */
+@media (max-width: 1200px) {
+    .npc-controls {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .npc-search-container {
+        grid-column: 1 / -1;
+    }
+
+    .npc-clear-filters {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 1024px) {
+    #npc-grid {
+        grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    #npc-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .npc-controls {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .npc-search-input,
+    .npc-filter-select,
+    .npc-clear-filters {
+        width: 100%;
+    }
+}
+
+/* Animazione per NPC filtrati */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* =====================================================
    RESPONSIVE DESIGN
    ===================================================== */

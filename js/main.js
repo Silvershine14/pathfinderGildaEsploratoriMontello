@@ -607,12 +607,116 @@ async function fetchUserProfile(uid) {
     }
 }
 
+
+///**
+// * Carica NPC da Firestore. Solo master/admin possono vedere gli NPC.
+// */
+//async function loadNPCs() {
+//    const container = document.getElementById('npc-grid');
+//    if (!container) return;
+
+//    renderLoading(container, 'Caricamento NPC...');
+
+//    const current = auth.currentUser;
+//    if (!current) {
+//        container.innerHTML = '<p>Utente non autenticato</p>';
+//        return;
+//    }
+
+//    try {
+//        const profileDoc = await db.collection('users').doc(current.uid).get();
+//        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
+//        if (!(role === 'master' || role === 'admin')) {
+//            container.innerHTML = '<p>Accesso negato agli NPC</p>';
+//            return;
+//        }
+
+//        const snapshot = await db.collection('npcs').orderBy('name', 'desc').get();
+
+//        if (snapshot.empty) {
+//            container.innerHTML = '<p>Nessun NPC presente.</p>';
+//            return;
+//        }
+
+//        container.innerHTML = '';
+//        snapshot.forEach(doc => {
+//            const npc = doc.data();
+//            const el = document.createElement('div');
+//            el.className = 'character-card';
+//            el.innerHTML = `
+//                <h4>${npc.name || 'NPC senza nome'}</h4>
+//                <p><b>Classe:</b> ${npc.class || '—'}</p>
+//                <p><b>Stirpe:</b> ${npc.ancestry || '—'}</p>
+//                <p><b>Livello:</b> ${npc.level || '—'}</p>
+//                <p><b>Note:</b> ${npc.desc || ''}</p>
+//                <p><b>Scheda:</b> <a href="${npc.driveUrl || ''}" target="_blank">clicca</a></p>
+//            `;
+//            container.appendChild(el);
+//        });
+
+//    } catch (err) {
+//        log('Errore caricamento NPC da Firestore:', err);
+//        container.innerHTML = '<p>Errore caricamento NPC</p>';
+//    }
+//}
+
+
 /**
- * Carica NPC da Firestore. Solo master/admin possono vedere gli NPC.
+ * Variabili globali per il filtro e i preferiti
+ */
+let allNPCsData = []; // Mantiene una copia di tutti gli NPC
+let favoriteNPCs = new Set(); // Set di ID preferiti
+let showOnlyFavorites = false; // Flag per mostrare solo preferiti
+
+/**
+ * Carica i preferiti dal localStorage
+ */
+function loadFavorites() {
+    const saved = localStorage.getItem('npc-favorites');
+    if (saved) {
+        try {
+            const array = JSON.parse(saved);
+            favoriteNPCs = new Set(array);
+        } catch (e) {
+            console.error('Errore caricamento preferiti:', e);
+            favoriteNPCs = new Set();
+        }
+    }
+}
+
+/**
+ * Salva i preferiti nel localStorage
+ */
+function saveFavorites() {
+    localStorage.setItem('npc-favorites', JSON.stringify([...favoriteNPCs]));
+}
+
+/**
+ * Aggiunge o rimuove un NPC dai preferiti
+ */
+function toggleFavorite(npcId) {
+    if (favoriteNPCs.has(npcId)) {
+        favoriteNPCs.delete(npcId);
+    } else {
+        favoriteNPCs.add(npcId);
+    }
+    saveFavorites();
+
+    // Aggiorna la visualizzazione
+    filterNPCs();
+}
+
+/**
+ * Carica NPC da Firestore e li renderizza come stat block Pathfinder 2e
+ * Supporta filtri, ricerca e preferiti
  */
 async function loadNPCs() {
     const container = document.getElementById('npc-grid');
     if (!container) return;
+
+    // Carica i preferiti
+    loadFavorites();
 
     renderLoading(container, 'Caricamento NPC...');
 
@@ -623,6 +727,7 @@ async function loadNPCs() {
     }
 
     try {
+        // Verifica ruolo utente
         const profileDoc = await db.collection('users').doc(current.uid).get();
         const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
 
@@ -631,34 +736,372 @@ async function loadNPCs() {
             return;
         }
 
-        const snapshot = await db.collection('npcs').orderBy('name', 'desc').get();
+        // Carica NPC da Firestore
+        const snapshot = await db.collection('npcs').orderBy('name', 'asc').get();
 
         if (snapshot.empty) {
-            container.innerHTML = '<p>Nessun NPC presente.</p>';
+            container.innerHTML = '<p style="text-align: center; padding: 2rem;">Nessun NPC presente. Gli stat block appariranno qui quando verranno aggiunti.</p>';
             return;
         }
 
-        container.innerHTML = '';
+        // Salva i dati per il filtro
+        allNPCsData = [];
         snapshot.forEach(doc => {
-            const npc = doc.data();
-            const el = document.createElement('div');
-            el.className = 'character-card';
-            el.innerHTML = `
-                <h4>${npc.name || 'NPC senza nome'}</h4>
-                <p><b>Classe:</b> ${npc.class || '—'}</p>
-                <p><b>Stirpe:</b> ${npc.ancestry || '—'}</p>
-                <p><b>Livello:</b> ${npc.level || '—'}</p>
-                <p><b>Note:</b> ${npc.desc || ''}</p>
-                <p><b>Scheda:</b> <a href="${npc.driveUrl || ''}" target="_blank">clicca</a></p>
-            `;
-            container.appendChild(el);
+            allNPCsData.push({
+                id: doc.id,
+                ...doc.data()
+            });
         });
+
+        // Inizializza i controlli di filtro
+        initializeNPCFilters(container);
+
+        // Renderizza gli NPC
+        renderNPCsWithFilters(allNPCsData, container);
+
+        log('NPC caricati e renderizzati:', snapshot.size);
 
     } catch (err) {
         log('Errore caricamento NPC da Firestore:', err);
-        container.innerHTML = '<p>Errore caricamento NPC</p>';
+        container.innerHTML = `<p style="color: red; text-align: center;">Errore caricamento NPC: ${err.message}</p>`;
     }
 }
+
+/**
+ * Inizializza i controlli di filtro e ricerca
+ */
+function initializeNPCFilters(container) {
+    const parent = container.parentElement;
+
+    // Rimuovi i filtri precedenti se esistono
+    const existingControls = parent.querySelector('.npc-controls');
+    if (existingControls) {
+        existingControls.remove();
+    }
+
+    // Estrai valori unici dai dati
+    const levels = [...new Set(allNPCsData.map(npc => npc.level))].sort((a, b) => parseInt(a) - parseInt(b));
+
+    const alignments = [...new Set(allNPCsData.map(npc => {
+        const traits = (npc.traits || '').split(',');
+        return traits.find(t => ['ne', 'le', 'ce', 'ng', 'n', 'cg', 'ln', 'lg', 'cn'].includes(t.trim().toLowerCase())) || '';
+    }).filter(x => x))];
+
+    const types = [...new Set(allNPCsData.map(npc => {
+        const traits = (npc.traits || '').split(',');
+        return traits.find(t => ['humanoid', 'beast', 'construct', 'dragon', 'fey', 'undead', 'aberration', 'elemental', 'plant', 'ooze'].includes(t.trim().toLowerCase())) || '';
+    }).filter(x => x))];
+
+    const groups = [...new Set(allNPCsData.map(npc => npc.group).filter(g => g))].sort();
+
+    // Crea il container dei controlli
+    const controlsDiv = document.createElement('div');
+    controlsDiv.className = 'npc-controls';
+
+    controlsDiv.innerHTML = `
+    <div class="npc-search-container">
+      <input 
+        type="text" 
+        id="npc-search" 
+        class="npc-search-input" 
+        placeholder="🔍 Cerca per nome NPC..."
+      >
+    </div>
+    
+    <select id="npc-level-filter" class="npc-filter-select">
+      <option value="">Tutti i Livelli</option>
+      ${levels.map(level => `<option value="${level}">Livello ${level}</option>`).join('')}
+    </select>
+    
+    <select id="npc-alignment-filter" class="npc-filter-select">
+      <option value="">Allineamento</option>
+      ${alignments.map(align => `<option value="${align.toUpperCase()}">${align.toUpperCase()}</option>`).join('')}
+    </select>
+    
+    <select id="npc-type-filter" class="npc-filter-select">
+      <option value="">Tipo Creatura</option>
+      ${types.map(type => `<option value="${type.toLowerCase()}">${type.charAt(0).toUpperCase() + type.slice(1)}</option>`).join('')}
+    </select>
+    
+    <select id="npc-group-filter" class="npc-filter-select">
+      <option value="">Tutti i Gruppi</option>
+      ${groups.map(group => `<option value="${group}">${group}</option>`).join('')}
+    </select>
+    
+    <button id="npc-clear-btn" class="npc-clear-filters">Resetta</button>
+  `;
+
+    parent.insertBefore(controlsDiv, container);
+
+    // Aggiungi gli event listener
+    document.getElementById('npc-search').addEventListener('input', () => filterNPCs());
+    document.getElementById('npc-level-filter').addEventListener('change', () => filterNPCs());
+    document.getElementById('npc-alignment-filter').addEventListener('change', () => filterNPCs());
+    document.getElementById('npc-type-filter').addEventListener('change', () => filterNPCs());
+    document.getElementById('npc-group-filter').addEventListener('change', () => filterNPCs());
+
+    document.getElementById('npc-clear-btn').addEventListener('click', () => {
+        document.getElementById('npc-search').value = '';
+        document.getElementById('npc-level-filter').value = '';
+        document.getElementById('npc-alignment-filter').value = '';
+        document.getElementById('npc-type-filter').value = '';
+        document.getElementById('npc-group-filter').value = '';
+        showOnlyFavorites = false;
+        filterNPCs();
+    });
+}
+
+/**
+ * Filtra gli NPC in base ai criteri selezionati
+ */
+function filterNPCs() {
+    const searchValue = document.getElementById('npc-search')?.value.toLowerCase() || '';
+    const levelValue = document.getElementById('npc-level-filter')?.value || '';
+    const alignmentValue = document.getElementById('npc-alignment-filter')?.value || '';
+    const typeValue = document.getElementById('npc-type-filter')?.value || '';
+    const groupValue = document.getElementById('npc-group-filter')?.value || '';
+
+    const filtered = allNPCsData.filter(npc => {
+        // Filtro preferiti
+        if (showOnlyFavorites && !favoriteNPCs.has(npc.id)) {
+            return false;
+        }
+
+        // Filtro ricerca per nome
+        const matchSearch = searchValue === '' || npc.name.toLowerCase().includes(searchValue);
+
+        // Filtro per livello
+        const matchLevel = levelValue === '' || npc.level === levelValue;
+
+        // Filtro per allineamento
+        const traits = (npc.traits || '').split(',').map(t => t.trim().toLowerCase());
+        const matchAlignment = alignmentValue === '' || traits.includes(alignmentValue.toLowerCase());
+
+        // Filtro per tipo
+        const matchType = typeValue === '' || traits.includes(typeValue.toLowerCase());
+
+        // Filtro per gruppo
+        const matchGroup = groupValue === '' || npc.group === groupValue;
+
+        return matchSearch && matchLevel && matchAlignment && matchType && matchGroup;
+    });
+
+    const container = document.getElementById('npc-grid');
+    renderNPCsWithFilters(filtered, container);
+
+    // Aggiorna info risultati
+    updateResultsInfo(filtered.length, allNPCsData.length);
+}
+
+/**
+ * Aggiorna le informazioni sui risultati
+ */
+function updateResultsInfo(results, total) {
+    let infoDiv = document.querySelector('.npc-results-info');
+
+    if (!infoDiv) {
+        infoDiv = document.createElement('div');
+        infoDiv.className = 'npc-results-info';
+        document.querySelector('.npc-controls').parentElement.insertBefore(infoDiv, document.getElementById('npc-grid'));
+    }
+
+    let infoText = '';
+    if (results === 0) {
+        infoText = `<strong>Nessun NPC trovato</strong> - Prova a cambiare i filtri`;
+    } else if (results === total) {
+        infoText = `<strong>${results}</strong> NPC trovati`;
+    } else {
+        infoText = `<strong>${results}</strong> di <strong>${total}</strong> NPC corrispondono ai filtri`;
+    }
+
+    const favCount = favoriteNPCs.size;
+    const favButton = `<button class="npc-favorites-toggle ${showOnlyFavorites ? 'active' : ''}" onclick="toggleFavoritesView()">
+    ⭐ ${showOnlyFavorites ? 'Tutti gli NPC' : 'Solo Preferiti'} ${favCount > 0 ? `(${favCount})` : ''}
+  </button>`;
+
+    infoDiv.innerHTML = `
+    <span>${infoText}</span>
+    ${favCount > 0 ? favButton : ''}
+  `;
+}
+
+/**
+ * Toggle vista solo preferiti
+ */
+function toggleFavoritesView() {
+    showOnlyFavorites = !showOnlyFavorites;
+    filterNPCs();
+}
+
+/**
+ * Renderizza gli NPC filtrati
+ */
+function renderNPCsWithFilters(npcsToRender, container) {
+    container.innerHTML = '';
+
+    if (npcsToRender.length === 0) {
+        const noResults = document.createElement('div');
+        noResults.className = 'npc-no-results';
+
+        if (showOnlyFavorites && favoriteNPCs.size === 0) {
+            noResults.innerHTML = `
+        <h3>⭐ Nessun preferito ancora</h3>
+        <p>Clicca sulla stella in alto a destra di uno stat block per aggiungerlo ai preferiti!</p>
+      `;
+        } else {
+            noResults.innerHTML = `
+        <h3>😔 Nessun NPC trovato</h3>
+        <p>Prova ad aggiustare i criteri di ricerca o i filtri</p>
+      `;
+        }
+        container.appendChild(noResults);
+        return;
+    }
+
+    npcsToRender.forEach(npc => {
+        if (npc.body) {
+            renderStatBlock(container, npc);
+        } else {
+            renderLegacyNPC(container, npc);
+        }
+    });
+}
+
+/**
+ * Renderizza un NPC in formato stat block Pathfinder 2e completo
+ */
+function renderStatBlock(container, npc) {
+    const statBlock = document.createElement('div');
+    statBlock.className = 'stat-block';
+
+    const isFavorite = favoriteNPCs.has(npc.id);
+
+    // Parse traits
+    const traits = (npc.traits || '').split(',').map(t => t.trim()).filter(t => t);
+    const traitsHTML = traits.map(trait => {
+        let traitClass = 'trait-badge';
+
+        if (['ne', 'le', 'ce', 'ng', 'n', 'cg', 'ln', 'lg', 'cn'].includes(trait.toLowerCase())) {
+            traitClass += ' alignment-' + trait.toLowerCase();
+        } else if (['tiny', 'small', 'medium', 'large', 'huge', 'gargantuan'].includes(trait.toLowerCase())) {
+            traitClass += ' size';
+        } else if (['humanoid', 'beast', 'construct', 'dragon', 'fey', 'undead', 'aberration', 'elemental', 'plant', 'ooze'].includes(trait.toLowerCase())) {
+            traitClass += ' type';
+        } else {
+            traitClass += ' subtype';
+        }
+
+        return `<span class="${traitClass}">${trait.toUpperCase()}</span>`;
+    }).join('');
+
+    // Parse del body
+    const bodyLines = (npc.body || '').split('\n').filter(line => line.trim());
+    let topSection = [];
+    let middleSection = [];
+    let bottomSection = [];
+    let currentSection = topSection;
+
+    bodyLines.forEach(line => {
+        if (line.trim() === '-') {
+            if (currentSection === topSection) {
+                currentSection = middleSection;
+            } else if (currentSection === middleSection) {
+                currentSection = bottomSection;
+            }
+        } else {
+            currentSection.push(line);
+        }
+    });
+
+    const formatActionSymbols = (text) => {
+        return text
+            .replace(/\(a\)/g, '<span class="action-icon">◆</span>')
+            .replace(/\(aa\)/g, '<span class="action-icon">◆◆</span>')
+            .replace(/\(aaa\)/g, '<span class="action-icon">◆◆◆</span>')
+            .replace(/\(r\)/g, '<span class="action-icon">↻</span>')
+            .replace(/\(f\)/g, '<span class="action-icon">⚡</span>');
+    };
+
+    const formatSection = (lines) => {
+        return lines.map(line => {
+            const formatted = formatActionSymbols(line);
+            return `<p class="stat-line">${formatted}</p>`;
+        }).join('');
+    };
+
+    statBlock.innerHTML = `
+    <button class="npc-favorite-btn ${isFavorite ? 'is-favorite' : ''}" 
+            onclick="toggleFavorite('${npc.id}')" 
+            title="${isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}">
+      ${isFavorite ? '⭐' : '☆'}
+    </button>
+    
+    <div class="stat-block-header">
+      <h3>${npc.name || 'NPC senza nome'}</h3>
+      <span class="stat-block-level">Creature ${npc.level || '?'}</span>
+    </div>
+    
+    ${traits.length > 0 ? `
+    <div class="stat-block-traits">
+      ${traitsHTML}
+      ${npc.group ? `<span class="stat-block-group-badge">📋 ${npc.group}</span>` : ''}
+    </div>
+    ` : ''}
+    
+    <div class="stat-block-body">
+      <div class="stat-block-section">
+        ${formatSection(topSection)}
+      </div>
+      
+      ${middleSection.length > 0 ? `
+        <hr class="stat-block-separator">
+        <div class="stat-block-section">
+          ${formatSection(middleSection)}
+        </div>
+      ` : ''}
+      
+      ${bottomSection.length > 0 ? `
+        <hr class="stat-block-separator">
+        <div class="stat-block-section">
+          ${formatSection(bottomSection)}
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+    container.appendChild(statBlock);
+}
+
+/**
+ * Renderizza un NPC in formato legacy
+ */
+function renderLegacyNPC(container, npc) {
+    const card = document.createElement('div');
+    card.className = 'character-card';
+
+    const isFavorite = favoriteNPCs.has(npc.id);
+
+    card.innerHTML = `
+    <button class="npc-favorite-btn ${isFavorite ? 'is-favorite' : ''}" 
+            onclick="toggleFavorite('${npc.id}')" 
+            title="${isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}">
+      ${isFavorite ? '⭐' : '☆'}
+    </button>
+    
+    <h4>${npc.name || 'NPC senza nome'}</h4>
+    <p><b>Classe:</b> ${npc.class || '—'}</p>
+    <p><b>Stirpe:</b> ${npc.ancestry || '—'}</p>
+    <p><b>Livello:</b> ${npc.level || '—'}</p>
+    ${npc.group ? `<p><b>Gruppo:</b> ${npc.group}</p>` : ''}
+    <p><b>Note:</b> ${npc.desc || ''}</p>
+    ${npc.driveUrl ? `<p><b>Scheda:</b> <a href="${npc.driveUrl}" target="_blank">clicca</a></p>` : ''}
+    <p style="margin-top: 1rem; padding: 0.5rem; background: #fff3cd; border-radius: 4px; font-size: 0.85rem;">
+      <em>Nota: Questo NPC usa il formato legacy. Per visualizzarlo come stat block, aggiorna i dati su Firestore.</em>
+    </p>
+  `;
+    container.appendChild(card);
+}
+
 
 /**
  * Carica tutte le schede (master/admin) - esempio
