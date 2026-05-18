@@ -541,6 +541,9 @@ function initDashboard() {
                 loadAllSheets();
             }
 
+            // Load documents section for all roles (will filter inside)
+            loadDocuments();
+
             if (role === 'admin') {
                 loadAllUsers();
             }
@@ -1166,6 +1169,104 @@ async function loadAllSheets() {
     } catch (err) {
         log('Errore caricamento schede da Firestore:', err);
         container.innerHTML = `<p>Errore caricamento schede: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
+    }
+}
+
+/**
+ * Carica i documenti visibili all'utente.
+ * Regole di visibilità:
+ * - role master/admin: vedono tutti i documenti
+ * - role player: vede documenti con visibility 'public', o owner==uid,
+ *   o se il suo uid è presente in allowedUids, o se uno dei suoi character ids
+ *   è presente in allowedCharacterIds.
+ */
+async function loadDocuments() {
+    const container = document.getElementById('documents-grid');
+    if (!container) return;
+    renderLoading(container, 'Caricamento documenti...');
+
+    const current = auth.currentUser;
+    if (!current) {
+        container.innerHTML = '<p>Utente non autenticato</p>';
+        return;
+    }
+
+    try {
+        const profileDoc = await db.collection('users').doc(current.uid).get();
+        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
+        // Carica tutti i documenti e poi filtra client-side per semplicità
+        const snapshot = await db.collection('documents').orderBy('createdAt', 'desc').get();
+
+        if (snapshot.empty) {
+            container.innerHTML = '<p>Nessun documento disponibile.</p>';
+            return;
+        }
+
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        let visibleDocs = docs;
+
+        if (role === 'player') {
+            // recupera gli id dei personaggi dell'utente per matching
+            const charsSnap = await db.collection('characters').where('owner', '==', current.uid).get();
+            const charIds = charsSnap.empty ? [] : charsSnap.docs.map(d => d.id);
+
+            visibleDocs = docs.filter(doc => {
+                if (!doc) return false;
+
+                // public visibility
+                if (doc.visibility === 'public') return true;
+
+                // owner can always see
+                if (doc.owner === current.uid) return true;
+
+                // allowedUids contains user's uid
+                if (Array.isArray(doc.allowedUids) && doc.allowedUids.includes(current.uid)) return true;
+
+                // allowedCharacterIds intersects with user's character ids
+                if (Array.isArray(doc.allowedCharacterIds) && doc.allowedCharacterIds.some(cid => charIds.includes(cid))) return true;
+
+                return false;
+            });
+        }
+
+        if (visibleDocs.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding:1rem;">Nessun documento disponibile per te.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        visibleDocs.forEach(doc => {
+            const el = document.createElement('div');
+            el.className = 'character-card';
+
+            const link = buildDriveLink(doc.driveUrl || doc.driveFileId || doc.fileId);
+
+            let accessNote = '';
+            if (doc.visibility && doc.visibility !== 'public') {
+                accessNote = `<p><small>Visibilità: ${doc.visibility}</small></p>`;
+            }
+
+            // show allowed users count if present
+            if (Array.isArray(doc.allowedUids) && doc.allowedUids.length > 0) {
+                accessNote += `<p><small>Condiviso con ${doc.allowedUids.length} giocatori</small></p>`;
+            }
+
+            el.innerHTML = `
+                <h4>${doc.title || 'Documento senza titolo'}</h4>
+                ${doc.desc ? `<p><small>${doc.desc}</small></p>` : ''}
+                ${link ? `<a href="${link}" class="btn-secondary" target="_blank" rel="noopener">Apri Documento</a>` : `<span class="btn-secondary" style="opacity:0.5;">Documento non disponibile</span>`}
+                ${accessNote}
+            `;
+
+            container.appendChild(el);
+        });
+
+    } catch (err) {
+        log('Errore caricamento documenti da Firestore:', err);
+        container.innerHTML = `<p style="color: red;">Errore caricamento documenti: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
     }
 }
 
