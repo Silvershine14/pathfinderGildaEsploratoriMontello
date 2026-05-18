@@ -1195,39 +1195,49 @@ async function loadDocuments() {
         const profileDoc = await db.collection('users').doc(current.uid).get();
         const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
 
-        // Carica tutti i documenti e poi filtra client-side per semplicità
-        const snapshot = await db.collection('documents').orderBy('createdAt', 'desc').get();
+        let visibleDocs = [];
 
-        if (snapshot.empty) {
-            container.innerHTML = '<p>Nessun documento disponibile.</p>';
-            return;
-        }
+        if (role === 'master' || role === 'admin') {
+            // Masters and admins can read all documents
+            const snapshot = await db.collection('documents').orderBy('createdAt', 'desc').get();
+            if (snapshot.empty) {
+                container.innerHTML = '<p>Nessun documento disponibile.</p>';
+                return;
+            }
+            visibleDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        } else {
+            // For players: run restricted queries only (Firestore requires that every
+            // document returned by a query satisfies the security rules). If we try to
+            // read the whole collection and some docs are private, the query will be
+            // rejected with "missing or insufficient permissions".
 
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Prepare targeted queries
+            const queries = [];
+            queries.push(db.collection('documents').where('visibility', '==', 'public').get());
+            queries.push(db.collection('documents').where('owner', '==', current.uid).get());
+            queries.push(db.collection('documents').where('allowedUids', 'array-contains', current.uid).get());
 
-        let visibleDocs = docs;
-
-        if (role === 'player') {
-            // recupera gli id dei personaggi dell'utente per matching
+            // also include allowedCharacterIds if the user has characters
             const charsSnap = await db.collection('characters').where('owner', '==', current.uid).get();
             const charIds = charsSnap.empty ? [] : charsSnap.docs.map(d => d.id);
+            for (const cid of charIds) {
+                queries.push(db.collection('documents').where('allowedCharacterIds', 'array-contains', cid).get());
+            }
 
-            visibleDocs = docs.filter(doc => {
-                if (!doc) return false;
+            // Execute queries in parallel and merge unique documents
+            const snapshots = await Promise.all(queries);
+            const map = new Map();
+            snapshots.forEach(snap => {
+                if (!snap || snap.empty) return;
+                snap.docs.forEach(d => {
+                    if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
+                });
+            });
 
-                // public visibility
-                if (doc.visibility === 'public') return true;
-
-                // owner can always see
-                if (doc.owner === current.uid) return true;
-
-                // allowedUids contains user's uid
-                if (Array.isArray(doc.allowedUids) && doc.allowedUids.includes(current.uid)) return true;
-
-                // allowedCharacterIds intersects with user's character ids
-                if (Array.isArray(doc.allowedCharacterIds) && doc.allowedCharacterIds.some(cid => charIds.includes(cid))) return true;
-
-                return false;
+            visibleDocs = Array.from(map.values()).sort((a, b) => {
+                const ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : (a.createdAt.seconds ? a.createdAt.seconds * 1000 : 0)) : 0;
+                const tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : (b.createdAt.seconds ? b.createdAt.seconds * 1000 : 0)) : 0;
+                return tb - ta;
             });
         }
 
