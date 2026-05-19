@@ -1173,16 +1173,13 @@ async function loadAllSheets() {
 }
 
 /**
- * Carica i documenti visibili all'utente.
- * Regole di visibilità:
- * - role master/admin: vedono tutti i documenti
- * - role player: vede documenti con visibility 'public', o owner==uid,
- *   o se il suo uid è presente in allowedUids, o se uno dei suoi character ids
- *   è presente in allowedCharacterIds.
+ * Carica i documenti visibili all'utente in modo robusto.
+ * Usa query separate per evitare errori di permessi sporadici.
  */
 async function loadDocuments() {
     const container = document.getElementById('documents-grid');
     if (!container) return;
+
     renderLoading(container, 'Caricamento documenti...');
 
     const current = auth.currentUser;
@@ -1192,92 +1189,142 @@ async function loadDocuments() {
     }
 
     try {
+        // Ottieni il ruolo utente
         const profileDoc = await db.collection('users').doc(current.uid).get();
         const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
 
         let visibleDocs = [];
 
         if (role === 'master' || role === 'admin') {
-            // Masters and admins can read all documents
-            const snapshot = await db.collection('documents').orderBy('createdAt', 'desc').get();
-            if (snapshot.empty) {
-                container.innerHTML = '<p>Nessun documento disponibile.</p>';
-                return;
+            // Master/admin: prova prima una query completa
+            try {
+                const snapshot = await db.collection('documents').orderBy('createdAt', 'desc').get();
+                visibleDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                log('Documenti caricati (master/admin - query completa):', visibleDocs.length);
+            } catch (err) {
+                // Fallback: usa le stesse query filtrate dei player
+                log('Query completa fallita per master/admin, uso query filtrate', err);
+                visibleDocs = await loadDocumentsWithQueries(current.uid);
             }
-            visibleDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         } else {
-            // For players: run restricted queries only (Firestore requires that every
-            // document returned by a query satisfies the security rules). If we try to
-            // read the whole collection and some docs are private, the query will be
-            // rejected with "missing or insufficient permissions".
-
-            // Prepare targeted queries
-            const queries = [];
-            queries.push(db.collection('documents').where('visibility', '==', 'public').get());
-            queries.push(db.collection('documents').where('owner', '==', current.uid).get());
-            queries.push(db.collection('documents').where('allowedUids', 'array-contains', current.uid).get());
-
-            // also include allowedCharacterIds if the user has characters
-            const charsSnap = await db.collection('characters').where('owner', '==', current.uid).get();
-            const charIds = charsSnap.empty ? [] : charsSnap.docs.map(d => d.id);
-            for (const cid of charIds) {
-                queries.push(db.collection('documents').where('allowedCharacterIds', 'array-contains', cid).get());
-            }
-
-            // Execute queries in parallel and merge unique documents
-            const snapshots = await Promise.all(queries);
-            const map = new Map();
-            snapshots.forEach(snap => {
-                if (!snap || snap.empty) return;
-                snap.docs.forEach(d => {
-                    if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
-                });
-            });
-
-            visibleDocs = Array.from(map.values()).sort((a, b) => {
-                const ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : (a.createdAt.seconds ? a.createdAt.seconds * 1000 : 0)) : 0;
-                const tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : (b.createdAt.seconds ? b.createdAt.seconds * 1000 : 0)) : 0;
-                return tb - ta;
-            });
+            // Player: usa sempre query separate e sicure
+            visibleDocs = await loadDocumentsWithQueries(current.uid);
         }
 
-        if (visibleDocs.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding:1rem;">Nessun documento disponibile per te.</p>';
-            return;
-        }
-
-        container.innerHTML = '';
-
-        visibleDocs.forEach(doc => {
-            const el = document.createElement('div');
-            el.className = 'character-card';
-
-            const link = buildDriveLink(doc.driveUrl || doc.driveFileId || doc.fileId);
-
-            let accessNote = '';
-            if (doc.visibility && doc.visibility !== 'public') {
-                accessNote = `<p><small>Visibilità: ${doc.visibility}</small></p>`;
-            }
-
-            // show allowed users count if present
-            if (Array.isArray(doc.allowedUids) && doc.allowedUids.length > 0) {
-                accessNote += `<p><small>Condiviso con ${doc.allowedUids.length} giocatori</small></p>`;
-            }
-
-            el.innerHTML = `
-                <h4>${doc.title || 'Documento senza titolo'}</h4>
-                ${doc.desc ? `<p><small>${doc.desc}</small></p>` : ''}
-                ${link ? `<a href="${link}" class="btn-secondary" target="_blank" rel="noopener">Apri Documento</a>` : `<span class="btn-secondary" style="opacity:0.5;">Documento non disponibile</span>`}
-                ${accessNote}
-            `;
-
-            container.appendChild(el);
-        });
+        // Renderizza i risultati
+        renderDocuments(visibleDocs, container);
 
     } catch (err) {
-        log('Errore caricamento documenti da Firestore:', err);
-        container.innerHTML = `<p style="color: red;">Errore caricamento documenti: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
+        log('Errore caricamento documenti:', err);
+        showError(container, 'Errore caricamento documenti: ' + (err.message || 'Errore sconosciuto'));
     }
+}
+
+/**
+ * Carica documenti usando query separate (sicuro per player e fallback per master/admin)
+ */
+async function loadDocumentsWithQueries(uid) {
+    const queries = [];
+
+    // Query 1: Documenti pubblici
+    queries.push(
+        db.collection('documents').where('visibility', '==', 'public').get()
+    );
+
+    // Query 2: Documenti di cui sono owner
+    queries.push(
+        db.collection('documents').where('owner', '==', uid).get()
+    );
+
+    // Query 3: Documenti in cui sono in allowedUids
+    queries.push(
+        db.collection('documents').where('allowedUids', 'array-contains', uid).get()
+    );
+
+    // Query 4-N: Documenti accessibili tramite i miei personaggi
+    try {
+        const charsSnap = await db.collection('characters').where('owner', '==', uid).get();
+        const charIds = charsSnap.empty ? [] : charsSnap.docs.map(d => d.id);
+
+        for (const cid of charIds) {
+            queries.push(
+                db.collection('documents').where('allowedCharacterIds', 'array-contains', cid).get()
+            );
+        }
+    } catch (charErr) {
+        log('Errore recupero personaggi per documenti:', charErr);
+    }
+
+    // Esegui tutte le query in parallelo
+    const results = await Promise.allSettled(queries);
+
+    // Raccogli tutti i documenti unici (deduplicazione per ID)
+    const docsMap = new Map();
+
+    results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value && !result.value.empty) {
+            result.value.docs.forEach(doc => {
+                if (!docsMap.has(doc.id)) {
+                    docsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                }
+            });
+        } else if (result.status === 'rejected') {
+            log('Una query documenti è fallita:', result.reason);
+        }
+    });
+
+    // Converti in array e ordina per data di creazione
+    const docs = Array.from(docsMap.values()).sort((a, b) => {
+        const ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : 0) : 0;
+        const tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : 0) : 0;
+        return tb - ta;
+    });
+
+    log('Documenti caricati (query filtrate):', docs.length);
+    return docs;
+}
+
+/**
+ * Renderizza i documenti nel container
+ */
+function renderDocuments(docs, container) {
+    if (!docs || docs.length === 0) {
+        container.innerHTML = '<p style="text-align:center; padding:2rem;">📄 Nessun documento disponibile al momento.</p>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    docs.forEach(doc => {
+        const el = document.createElement('div');
+        el.className = 'character-card';
+
+        const link = buildDriveLink(doc.driveUrl || doc.driveFileId || doc.fileId);
+
+        let accessNote = '';
+        if (doc.visibility && doc.visibility !== 'public') {
+            const visibilityLabel = doc.visibility === 'private' ? '🔒 Privato' : `🔐 ${doc.visibility}`;
+            accessNote = `<p style="font-size: 0.85rem; color: #666;"><strong>${visibilityLabel}</strong></p>`;
+        }
+
+        if (Array.isArray(doc.allowedUids) && doc.allowedUids.length > 0) {
+            accessNote += `<p style="font-size: 0.85rem; color: #666;">👥 Condiviso con ${doc.allowedUids.length} ${doc.allowedUids.length === 1 ? 'giocatore' : 'giocatori'}</p>`;
+        }
+
+        el.innerHTML = `
+      <h4>${doc.title || 'Documento senza titolo'}</h4>
+      ${doc.desc ? `<p style="margin: 0.5rem 0; color: #555;">${doc.desc}</p>` : ''}
+      ${accessNote}
+      ${link
+                ? `<a href="${link}" class="btn-secondary" target="_blank" rel="noopener">📂 Apri Documento</a>`
+                : `<span class="btn-secondary" style="opacity:0.5; cursor: not-allowed;">Documento non disponibile</span>`
+            }
+    `;
+
+        container.appendChild(el);
+    });
+
+    log('Documenti renderizzati:', docs.length);
 }
 
 /**
@@ -1389,6 +1436,66 @@ async function loadMessages() {
         `;
     });
 }
+
+/**
+ * Mostra un errore user-friendly nel container
+ */
+function showError(container, message) {
+    if (typeof container === 'string') {
+        container = document.querySelector(container);
+    }
+
+    if (!container) {
+        console.error('Container non trovato per mostrare errore:', message);
+        return;
+    }
+
+    container.innerHTML = `
+    <div style="
+      padding: 1.5rem; 
+      background: #fee; 
+      border: 2px solid #fcc; 
+      border-radius: 8px; 
+      text-align: center;
+      color: #c33;
+    ">
+      <strong>⚠️ ${message}</strong>
+      <p style="margin-top: 0.5rem; font-size: 0.9rem;">
+        Prova a ricaricare la pagina. Se il problema persiste, contatta l'amministratore.
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Mostra un messaggio di successo
+ */
+function showSuccess(container, message) {
+    if (typeof container === 'string') {
+        container = document.querySelector(container);
+    }
+
+    if (!container) return;
+
+    const successDiv = document.createElement('div');
+    successDiv.style.cssText = `
+    padding: 1rem; 
+    background: #dfd; 
+    border: 2px solid #9c9; 
+    border-radius: 8px; 
+    text-align: center;
+    color: #363;
+    margin-bottom: 1rem;
+  `;
+    successDiv.innerHTML = `<strong>✅ ${message}</strong>`;
+
+    container.insertBefore(successDiv, container.firstChild);
+
+    // Rimuovi dopo 3 secondi
+    setTimeout(() => successDiv.remove(), 3000);
+}
+
+
 
 const messageForm = document.getElementById('messageForm');
 if (messageForm) {
