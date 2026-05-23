@@ -533,6 +533,7 @@ function initDashboard() {
 
             // Load default sections
             loadCharacters();
+            loadSessions();
             loadMessages();
 
             // Role-specific data
@@ -1649,6 +1650,106 @@ async function loadCharacters() {
         container.innerHTML = `<p style="color: red; text-align: center;">Errore caricamento personaggi: ${err.message}</p>`;
     }
 }
+
+
+/**
+ * Carica la cronologia delle sessioni visibili all'utente.
+ * Regole:
+ * - master/admin vedono tutte le sessioni
+ * - player vede solo le sessioni in cui è incluso (resource.data.players contains uid)
+ */
+async function loadSessions() {
+    const container = document.getElementById('sessions-grid');
+    if (!container) return;
+    renderLoading(container, 'Caricamento sessioni...');
+
+    const current = auth.currentUser;
+    if (!current) {
+        container.innerHTML = '<p>Utente non autenticato</p>';
+        return;
+    }
+
+    try {
+        const profileDoc = await db.collection('users').doc(current.uid).get();
+        const role = profileDoc.exists ? (profileDoc.data().role || 'player') : 'player';
+
+        let sessions = [];
+
+        if (role === 'master' || role === 'admin') {
+            // Try server-side ordering for masters/admins first. If Firestore requires
+            // an index for some reason, fall back to a safe client-side ordering.
+            try {
+                const snap = await db.collection('sessions').orderBy('date', 'desc').get();
+                sessions = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (err) {
+                log('Query sessions (master/admin) failed, falling back to unordered fetch:', err);
+                // If there's an index requirement, retry without orderBy and sort client-side
+                const snap = await db.collection('sessions').get();
+                sessions = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                sessions.sort((a, b) => {
+                    const ta = a.date ? (a.date.toMillis ? a.date.toMillis() : (a.date.seconds ? a.date.seconds * 1000 : 0)) : 0;
+                    const tb = b.date ? (b.date.toMillis ? b.date.toMillis() : (b.date.seconds ? b.date.seconds * 1000 : 0)) : 0;
+                    return tb - ta;
+                });
+            }
+        } else {
+            // player: carica solo sessioni dove è incluso
+            // Avoid requiring a composite index by not combining array-contains with orderBy.
+            // Fetch matching sessions and sort client-side by date (newest first).
+            try {
+                const snap = await db.collection('sessions').where('players', 'array-contains', current.uid).get();
+                sessions = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            } catch (err) {
+                // If this fails with an index error (rare), inform user and try a full fetch as fallback.
+                log('Query sessions (player) failed:', err);
+                // If Firestore suggests creating an index, include link in the UI
+                let msg = 'Errore caricamento sessioni.';
+                if (err && err.message && err.message.includes('requires an index')) {
+                    const m = err.message.match(/https:\/\/console\.firebase\.google\.com\/[^"]+/);
+                    const idxLink = m ? m[0] : null;
+                    if (idxLink) msg += ` Crea l'indice qui: ${idxLink}`;
+                }
+                container.innerHTML = `<p style="color: red; text-align: center;">${msg}</p>`;
+                return;
+            }
+
+            // Client-side sort to have newest sessions first.
+            sessions.sort((a, b) => {
+                const ta = a.date ? (a.date.toMillis ? a.date.toMillis() : (a.date.seconds ? a.date.seconds * 1000 : 0)) : 0;
+                const tb = b.date ? (b.date.toMillis ? b.date.toMillis() : (b.date.seconds ? b.date.seconds * 1000 : 0)) : 0;
+                return tb - ta;
+            });
+        }
+
+        if (sessions.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding:1rem;">Nessuna sessione trovata.</p>';
+            return;
+        }
+
+        container.innerHTML = '';
+
+        sessions.forEach(s => {
+            const el = document.createElement('div');
+            el.className = 'character-card';
+
+            const dateStr = s.date ? (s.date.toDate ? s.date.toDate().toLocaleString('it-IT') : new Date(s.date).toLocaleString('it-IT')) : '';
+
+            el.innerHTML = `
+                <h4>${s.title || 'Sessione senza titolo'}</h4>
+                <p><small>${dateStr}</small></p>
+                ${s.summary ? `<p style="margin:0.5rem 0; color:#555;">${s.summary}</p>` : ''}
+                ${s.handoutUrl ? `<a href="${buildDriveLink(s.handoutUrl || s.handoutFileId)}" class="btn-secondary" target="_blank" rel="noopener">📂 Handout</a>` : ''}
+            `;
+
+            container.appendChild(el);
+        });
+
+    } catch (err) {
+        log('Errore caricamento sessioni da Firestore:', err);
+        container.innerHTML = `<p style="color: red; text-align: center;">Errore caricamento sessioni: ${err && err.message ? err.message : 'errore sconosciuto'}</p>`;
+    }
+}
+
 
 
 // =====================================================
