@@ -4,17 +4,20 @@
 
 // FIREBASE CONFIGURATION
 const firebaseConfig = {
-  apiKey: "AIzaSyB-2yDPXPOoGGjpbV44VfJYkNRfnezNUkE",
-  authDomain: "gildaesploratorimontello.firebaseapp.com",
-  projectId: "gildaesploratorimontello",
-  storageBucket: "gildaesploratorimontello.firebasestorage.app",
-  messagingSenderId: "512224002060",
-  appId: "1:512224002060:web:a041a2b7a225dc3a952e29",
-  measurementId: "G-KEWSJWLKX2"
+    apiKey: "AIzaSyB-2yDPXPOoGGjpbV44VfJYkNRfnezNUkE",
+    authDomain: "gildaesploratorimontello.firebaseapp.com",
+    projectId: "gildaesploratorimontello",
+    storageBucket: "gildaesploratorimontello.firebasestorage.app",
+    messagingSenderId: "512224002060",
+    appId: "1:512224002060:web:a041a2b7a225dc3a952e29",
+    measurementId: "G-KEWSJWLKX2"
 };
 
 // Firebase services (initialized after DOM loads)
 let app, auth, db, storage;
+
+// Cache for adventures loaded from Firestore
+let allAdventuresData = [];
 
 // DATI DI ESEMPIO (per fallback se Firestore è vuoto)
 const adventures = [
@@ -28,10 +31,10 @@ const adventures = [
     },
     {
         id: 2,
-        title: "La Scomparsa della Carovana",
-        level: "4-6",
-        duration: "5-6 ore",
-        description: "Una carovana di mercanti è scomparsa sulla strada da nord. Banditi? Bestie selvagge? O qualcosa di più sinistro? Investigate il mistero e salvate i sopravvissuti.",
+        title: "Grosso guaio ad Absalom",
+        level: "1",
+        duration: "3 ore circa",
+        description: "Vivere sempre nell'ombra è complicato quando sei una creatura scaltra e regale come un coboldo. Ora è tempo di portare onore e prestigio al tuo clan! Nella one shot potrai interpretare uno dei cinque coboldi del clan Artiglio Uncinato, inviati a cercare tesori in una stanza segreta scoperta dalla squadra di scavatori del clan. Quali terribili pericoli dovrete affrontare?",
         image: "assets/images/placeholder-2.jpg"
     },
     {
@@ -148,9 +151,9 @@ function initializeFirebase() {
         auth = firebase.auth();
         db = firebase.firestore();
         storage = firebase.storage();
-        
+
         log('Firebase inizializzato correttamente');
-        
+
         // Listener per cambio stato autenticazione
         auth.onAuthStateChanged((user) => {
             if (user) {
@@ -159,7 +162,7 @@ function initializeFirebase() {
                 log('Nessun utente autenticato');
             }
         });
-        
+
         return true;
     } catch (error) {
         log('ERRORE inizializzazione Firebase:', error);
@@ -183,7 +186,7 @@ function isUserLoggedIn() {
  */
 function getCurrentUser() {
     if (!auth || !auth.currentUser) return null;
-    
+
     return {
         uid: auth.currentUser.uid,
         email: auth.currentUser.email,
@@ -199,9 +202,9 @@ async function loginUser(email, password) {
         log('Tentativo di login con Firebase...');
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
+
         log('Login Firebase riuscito:', user.email);
-        
+
         return {
             uid: user.uid,
             email: user.email,
@@ -209,7 +212,7 @@ async function loginUser(email, password) {
         };
     } catch (error) {
         log('Errore login Firebase:', error.code, error.message);
-        
+
         // Traduci errori Firebase in italiano
         let errorMessage = 'Errore durante il login';
         if (error.code === 'auth/user-not-found') {
@@ -221,7 +224,7 @@ async function loginUser(email, password) {
         } else if (error.code === 'auth/too-many-requests') {
             errorMessage = 'Troppi tentativi. Riprova più tardi.';
         }
-        
+
         throw new Error(errorMessage);
     }
 }
@@ -246,20 +249,20 @@ async function logoutUser() {
 async function registerUser(email, password, name) {
     try {
         log('Tentativo di registrazione con Firebase...');
-        
+
         // Crea l'utente in Firebase Auth
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
+
         log('Utente creato in Firebase Auth:', user.uid);
-        
+
         // Aggiorna il profilo con il nome
         await user.updateProfile({
             displayName: name
         });
-        
+
         log('Profilo aggiornato con displayName:', name);
-        
+
         // Salva dati utente in Firestore
         await db.collection('users').doc(user.uid).set({
             email: email,
@@ -268,9 +271,9 @@ async function registerUser(email, password, name) {
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             characters: []
         });
-        
+
         log('Dati utente salvati in Firestore');
-        
+
         return {
             uid: user.uid,
             email: user.email,
@@ -278,7 +281,7 @@ async function registerUser(email, password, name) {
         };
     } catch (error) {
         log('Errore registrazione Firebase:', error.code, error.message);
-        
+
         // Traduci errori Firebase in italiano
         let errorMessage = 'Errore durante la registrazione';
         if (error.code === 'auth/email-already-in-use') {
@@ -288,7 +291,7 @@ async function registerUser(email, password, name) {
         } else if (error.code === 'auth/weak-password') {
             errorMessage = 'La password deve essere di almeno 6 caratteri.';
         }
-        
+
         throw new Error(errorMessage);
     }
 }
@@ -309,19 +312,24 @@ async function loadAdventures() {
     try {
         // Prova a caricare da Firestore
         const snapshot = await db.collection('oneshots').orderBy('createdAt', 'desc').get();
-        
+
         if (snapshot.empty) {
             log('Nessuna avventura in Firestore, uso dati di esempio');
             // Usa dati di esempio
-            renderAdventures(adventures);
+            allAdventuresData = adventures;
+            renderAdventures(allAdventuresData);
         } else {
             const firestoreAdventures = [];
             snapshot.forEach(doc => {
+                const data = doc.data() || {};
+                // keep both docId (firestore document id) and id (possible legacy numeric/string id)
                 firestoreAdventures.push({
-                    id: doc.id,
-                    ...doc.data()
+                    docId: doc.id,
+                    id: data.id || doc.id,
+                    ...data
                 });
             });
+            allAdventuresData = firestoreAdventures;
             log('Avventure caricate da Firestore:', firestoreAdventures.length);
             renderAdventures(firestoreAdventures);
         }
@@ -348,11 +356,16 @@ function renderAdventures(adventuresList) {
     adventuresList.forEach(adventure => {
         const card = document.createElement('div');
         card.className = 'adventure-card';
+        // If the document has a direct driveUrl, expose a small download link on the card
+        const quickDownload = adventure.driveUrl || adventure.driveFileId || adventure.fileId ?
+            `<a href="${buildDriveLink(adventure.driveUrl || adventure.driveFileId || adventure.fileId)}" class="btn-secondary" target="_blank" rel="noopener">📥 Scarica Documentazione</a>` : '';
+
         card.innerHTML = `
             <h3>${adventure.title}</h3>
             <p class="adventure-meta">Livello ${adventure.level} • Durata ${adventure.duration}</p>
             <p>${adventure.description}</p>
-            <a href="one-shots.html?id=${adventure.id}" class="btn-secondary">Leggi di più</a>
+            <a href="one-shots.html?id=${encodeURIComponent(adventure.docId || adventure.id)}" class="btn-secondary">Leggi di più</a>
+            ${quickDownload}
         `;
         container.appendChild(card);
     });
@@ -361,10 +374,31 @@ function renderAdventures(adventuresList) {
 }
 
 /**
- * Ottieni dettaglio di un'avventura per ID
+ * Ottieni dettaglio di un'avventura per ID.
+ * Cerca prima nella cache `allAdventuresData` (caricata da Firestore),
+ * poi nel fallback `adventures` array. Supporta sia id numerici che stringhe
+ * (Firestore doc ids).
  */
 function getAdventureById(id) {
-    return adventures.find(a => a.id === parseInt(id));
+    if (!id) return null;
+    const decoded = decodeURIComponent(id);
+
+    // Try exact match on cached Firestore docId first, then on stored id field
+    let found = allAdventuresData.find(a => String(a.docId || a.id) === String(decoded));
+    if (found) return found;
+
+    // Try match by numeric id in fallback data
+    const numeric = parseInt(decoded);
+    if (!isNaN(numeric)) {
+        found = allAdventuresData.find(a => parseInt(a.id) === numeric || parseInt(a.docId) === numeric);
+        if (found) return found;
+
+        // fallback sample data
+        return adventures.find(a => a.id === numeric) || null;
+    }
+
+    // Last resort: search sample adventures by string id
+    return adventures.find(a => String(a.id) === String(decoded)) || null;
 }
 
 // =====================================================
@@ -382,9 +416,9 @@ function initHomePage() {
 /**
  * Inizializza pagina One-Shots
  */
-function initOneShots() {
+async function initOneShots() {
     log('Inizializzazione pagina One-Shots');
-    
+
     // Controlla se c'è un ID specifico nell'URL
     const params = new URLSearchParams(window.location.search);
     const adventureId = params.get('id');
@@ -393,17 +427,84 @@ function initOneShots() {
     if (!container) return;
 
     if (adventureId) {
-        const adventure = getAdventureById(adventureId);
+        // Try to get from cached adventures; if not present, fetch single doc from Firestore
+        let adventure = getAdventureById(adventureId);
+
+        if (!adventure) {
+            try {
+                // First try by document ID
+                const doc = await db.collection('oneshots').doc(decodeURIComponent(adventureId)).get();
+                if (doc.exists) {
+                    adventure = { id: doc.id, ...doc.data() };
+                } else {
+                    // Fallback: some installs store a numeric/string `id` field inside the doc.
+                    // Try a query by that field (legacyId support).
+                    const decoded = decodeURIComponent(adventureId);
+                    let q = await db.collection('oneshots').where('id', '==', decoded).limit(1).get();
+                    if (q.empty) {
+                        const numeric = parseInt(decoded);
+                        if (!isNaN(numeric)) {
+                            q = await db.collection('oneshots').where('id', '==', numeric).limit(1).get();
+                        }
+                    }
+                    if (!q.empty) {
+                        const d = q.docs[0];
+                        adventure = { id: d.id, ...d.data() };
+                    }
+                }
+            } catch (err) {
+                log('Errore recupero one-shot singolo da Firestore:', err);
+            }
+        }
+
         if (adventure) {
+            log('One-shot trovato per dettaglio:', adventure);
+            // Build character sheets links from adventure data if available
+            let sheetsHTML = '';
+
+            // Common fields: driveUrl / driveFileId / fileId
+            if (adventure.driveUrl || adventure.driveFileId || adventure.fileId) {
+                const link = buildDriveLink(adventure.driveUrl || adventure.driveFileId || adventure.fileId);
+                if (link) sheetsHTML = `<p><b>Schede personaggi:</b> <a href="${link}" target="_blank" rel="noopener">Scarica</a></p>`;
+            }
+
+            // If there is a `sheets` array, render each
+            if (Array.isArray(adventure.sheets) && adventure.sheets.length > 0) {
+                const items = adventure.sheets.map(s => {
+                    const l = buildDriveLink(s.driveUrl || s.driveFileId || s.fileId);
+                    return `<li>${s.title || 'Scheda'}${l ? ` - <a href="${l}" target="_blank" rel="noopener">Scarica</a>` : ''}</li>`;
+                }).join('');
+                sheetsHTML = `<p><b>Schede personaggi:</b></p><ul>${items}</ul>`;
+            }
+
+            // If there is a top-level driveUrl/driveFileId, always show a primary link
+            const rawDrive = adventure.driveUrl || adventure.driveFileId || adventure.fileId || null;
+            let primaryDriveLink = null;
+            if (rawDrive) {
+                primaryDriveLink = buildDriveLink(rawDrive) || rawDrive;
+            }
+
+            if (!sheetsHTML) {
+                sheetsHTML = '<p style="color:#666;"><em>Nessuna scheda di personaggio disponibile per il download in questo documento.</em></p>';
+            }
+
+            if (!primaryDriveLink) {
+                log('Nessun link Drive trovato per questa one-shot:', adventure);
+            }
+
             container.innerHTML = `
                 <div style="grid-column: 1 / -1;">
-                    <h2>${adventure.title}</h2>
-                    <p><strong>Livello:</strong> ${adventure.level}</p>
-                    <p><strong>Durata:</strong> ${adventure.duration}</p>
-                    <p>${adventure.description}</p>
+                    <h2>${adventure.title || 'One-shot'}</h2>
+                    <p><strong>Livello:</strong> ${adventure.level || '—'}</p>
+                    <p><strong>Durata:</strong> ${adventure.duration || '—'}</p>
+                    <p>${adventure.description || ''}</p>
+                    ${primaryDriveLink ? `<p><a href="${primaryDriveLink}" class="btn-secondary" target="_blank" rel="noopener">📥 Scarica documentazione</a></p>` : ''}
+                    ${sheetsHTML}
                     <a href="one-shots.html" class="btn-secondary">← Torna alla lista</a>
                 </div>
             `;
+        } else {
+            container.innerHTML = '<p style="text-align:center; padding:1rem;">One-shot non trovata.</p>';
         }
     } else {
         loadAdventures();
@@ -433,12 +534,12 @@ function initLoginPage() {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             log('Submit del form di login intercettato');
-            
+
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
-            
+
             log('Dati login:', { email, password: password ? '***' : 'vuoto' });
-            
+
             if (email && password) {
                 try {
                     await loginUser(email, password);
@@ -462,13 +563,13 @@ function initLoginPage() {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             log('Submit del form di registrazione intercettato');
-            
+
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
             const name = document.getElementById('registerName').value;
-            
+
             log('Dati registrazione:', { email, name, password: password ? '***' : 'vuoto' });
-            
+
             if (email && password && name) {
                 try {
                     await registerUser(email, password, name);
@@ -486,7 +587,7 @@ function initLoginPage() {
     } else {
         log('ERRORE: registerForm non trovato!');
     }
-    
+
     log('Inizializzazione login completata');
 }
 
@@ -501,7 +602,7 @@ function initDashboard() {
     const userInfo = document.querySelector('.user-info');
     if (userInfo) userInfo.innerHTML = "<h3>Caricamento profilo...</h3>";
     // Use onAuthStateChanged to wait until Firebase finishes restoring the session
-    auth.onAuthStateChanged(async function(user) {
+    auth.onAuthStateChanged(async function (user) {
         if (!user) {
             // Non autenticato, reindirizza a login
             log('Utente NON autenticato, torno su login');
@@ -1514,33 +1615,33 @@ if (messageForm) {
  * Carica personaggi della dashboard
  */
 //async function loadCharacters() {
-    //const container = document.querySelector('.character-grid');
-    //if (!container) return;
+//const container = document.querySelector('.character-grid');
+//if (!container) return;
 
-    //// Dati di esempio
-    //const characters = [
-    //    {
-    //        name: "Baldur Ironforge",
-    //        class: "Guerriero",
-    //        level: 5,
-    //        ancestry: "Nano"
-    //        , driveFileId: '1a2B3cExampleFileId'
-    //    },
-    //    {
-    //        name: "Sylvaria Moonwhisper",
-    //        class: "Maga",
-    //        level: 4,
-    //        ancestry: "Elfo"
-    //        , driveFileId: '1d4E5fExampleFileId'
-    //    },
-    //    {
-    //        name: "Thorne Swiftblade",
-    //        class: "Ladro",
-    //        level: 5,
-    //        ancestry: "Umano"
-    //        , driveFileId: '1g6H7iExampleFileId'
-    //    }
-    //];
+//// Dati di esempio
+//const characters = [
+//    {
+//        name: "Baldur Ironforge",
+//        class: "Guerriero",
+//        level: 5,
+//        ancestry: "Nano"
+//        , driveFileId: '1a2B3cExampleFileId'
+//    },
+//    {
+//        name: "Sylvaria Moonwhisper",
+//        class: "Maga",
+//        level: 4,
+//        ancestry: "Elfo"
+//        , driveFileId: '1d4E5fExampleFileId'
+//    },
+//    {
+//        name: "Thorne Swiftblade",
+//        class: "Ladro",
+//        level: 5,
+//        ancestry: "Umano"
+//        , driveFileId: '1g6H7iExampleFileId'
+//    }
+//];
 
 //    container.innerHTML = '';
 
@@ -1761,7 +1862,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // INIZIALIZZA FIREBASE PRIMA DI TUTTO
     const firebaseReady = initializeFirebase();
-    
+
     if (!firebaseReady) {
         log('ERRORE: Firebase non è stato inizializzato correttamente');
         alert('Errore di connessione al server. Ricarica la pagina.');
@@ -1772,7 +1873,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         // Determina quale pagina è attualmente attiva basandosi sugli elementi presenti
         // Questo approccio è più robusto del controllare window.location.pathname
-        
+
         if (document.getElementById('loginForm')) {
             // Siamo sulla pagina di login
             initLoginPage();
